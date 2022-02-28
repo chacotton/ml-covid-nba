@@ -3,7 +3,6 @@ from bs4 import BeautifulSoup
 import pandas as pd 
 
 
-
 def covid_data_scraper():
     index = 0
     df = pd.DataFrame(columns=['Date', 'Team', 'Acquired', 'Relinquished', 'Notes'])
@@ -20,4 +19,8 @@ def covid_data_scraper():
             notes = columns[4].text.strip()
             df = df.append({'Date': date, 'Team': team, 'Acquired': acquired, 'Relinquished': relinquished, 'Notes': notes }, ignore_index=True)
         index += 25
-    df.to_csv('NBA_Injury_Data.csv', index = False)
+    df.to_csv('covid_data/NBA_Injury_Data.csv', index = False)
+
+
+if __name__ == '__main__':
+    covid_data_scraper()
