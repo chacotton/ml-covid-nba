@@ -1,0 +1,32 @@
+Directions for running mlflow experiments
+
+1. Create a Data Science Notebook on Oracle Cloud
+    a. For testing create your own project or put them in notebook_test (do not put thme in Chance of Victory Models
+       or COVID Recovery Models unless it's a real trial model
+    b. Give it a name, it doesn't matter
+    c. Give it Storage (rec 100-200 GB)
+    d. Select Custom Networking ********This is very important**********
+        i. VCN = model_db
+        ii. Subnet = Private Subnet-model_db ***********This is very important*************
+2. Enter DS Notebook and open terminal
+3. Create a folder called mlflow_utils
+4. Upload the contents of ml-covid-nba/mlflow_utils from git repo
+5. In terminal
+    a. cd mlflow_utils
+    b. ./setup.sh
+    c. cd ..
+6. Install any model packages needed, base packages are installed in setup script
+7. Duplicate starter_script.ipynb for each model you wish to run
+***********You can stop here*************
+8. Tune models on data (if using test data the performance will probably be poor)
+
+
+Access mysql database (stores models, params, and metrics)
+Have to ssh to oracle host
+Linux machine: 129.153.2.48
+username: team
+password: NBACovid19!
+
+ex ssh team@129.153.2.48
+After connecting run ./mysql.sh -> this logs you into database
+Run: USE test_db; enters you into base database then you can query tables
