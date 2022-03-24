@@ -1,41 +1,111 @@
-import mysql.connector
+import sys
+from sqlalchemy import create_engine
+from query_templates import *
+from collections import namedtuple
+from importlib import import_module
 
 
 class ModelGenerator:
-    def __init__(self, database="test_db"):
-        self.db = mysql.connector.connect(
-                host="10.0.0.150",
-                user="admin",
-                password="NBACovid19!",
-                database=database,
-                )
+    """Selects Best Model from MLFlow logging"""
+
+    hosts = {
+        "darwin": "127.0.0.1:3307",
+        "linux": "10.0.0.150",
+    }
+
+    metrics = {
+        "regression": "r2",
+        "classification": "accuracy"
+    }
+
+    model = namedtuple('model', 'model params')
+
+    @classmethod
+    def list_to_str(cls, ids: list) -> str:
+        """
+        Takes list of strings and converts to one comma separated string
+        :param ids: list of strings
+        :return: str
+        """
+
+        return ", ".join(["'" + _id + "'" for _id in ids])
+
+    def __init__(self, database="test"):
+        """
+        Initialization for ModelGenerator
+        :param database: name of database to select best model from options are ['test', 'win', 'covid']
+        """
+
+        assert database in ['test', 'win', 'covid'], "Valid databases are 'test', 'win', or 'covid'"
+        system = sys.platform
+        self.db = create_engine(f'mysql+pymysql://admin:NBACovid19!@{self.hosts.get(system, "10.0.0.150")}/{database}_db')
+        self.db.connect()
+        self._model_id = None
         self.best_model_name = None
         self.model_params = None
         self.meta_data = None
 
-    def _get_best_model_name(self):
-        raise NotImplementedError
+    def _get_best_model_name(self, problem: str = 'regression'):
+        """
+        Helper function to get best model data
+        :param problem: str , must be in ['classification', 'regression']
+        :return: None
+        """
 
-    def _get_best_model_params(self):
-        raise NotImplementedError
+        result = self.db.execute(VALID_MODELS.substitute({'type': problem}))
+        models = {k: v for v, k in result}
+        result = self.db.execute(BEST_PERFORMANCE.substitute({'run_ids': self.list_to_str(list(models.keys())),
+                                                              'metric': self.metrics[problem]}))
+        self._model_id = result.__next__()[0]
+        self.best_model_name = models[self._model_id]
 
-    def get_best_model(self):
-        raise NotImplementedError
+    def _get_best_model_params(self) -> dict:
+        """
+        Helper function to place best model parameters in dictionary
+        :return: None
+        """
 
-    def get_meta_data(self):
-        raise NotImplementedError
+        result = self.db.execute(PARAMS.substitute({'run_id': self._model_id}))
+        return {k: v for k, v in result}
+
+    def get_best_model(self, problem: str = 'regression') -> model:
+        """
+        Function to return initialized best model and parameters for model
+        *Currently model instantiation is only supported for Sci-Kit Learn Models (sklearn)
+            Models from other libraries will be returned as name only
+        :param problem: str, must be 'classification' or 'regression'
+        :return: model, namedtuple with attributes model (instantiated model or model name)
+                        and params (dict of model params)
+        """
+
+        assert problem in ['classification', 'regression'], "problem must be 'classification' or 'regression'"
+        self._get_best_model_name(problem=problem)
+        self.model_params = self._get_best_model_params()
+        result = self.db.execute(CLASS.substitute({'run_id': self._model_id}))
+        try:
+            model_class = result.__next__()[0]
+            model_class = model_class.rsplit('.', 1)
+            model_class = getattr(import_module(model_class[0]), model_class[-1])
+            return self.model(model_class(**self.model_params), self.model_params)
+        except StopIteration:
+            return self.model(self.best_model_name, self.model_params)
+
+    def get_meta_data(self) -> dict:
+        """
+        Function to return any calculated metrics on a model
+        :return: dict of metrics (metrics depends on whether regression or classification model)
+        """
+
+        result = self.db.execute(METRICS.substitute({'run_id': self._model_id}))
+        return {k: v for k, v in result}
 
 
 if __name__ == '__main__':
-    db = mysql.connector.connect(
-        host="10.0.0.150",
-        user="admin",
-        password="NBACovid19!",
-        database="test_db",
-    )
-    with db.cursor() as cur:
-        cur.execute("SELECT * FROM tags WHERE `key` = 'mlflow.autologging'")
-        for x in cur:
-            print(x)
-    db.close()
+    model = ModelGenerator()
+    best_model = model.get_best_model(problem='classification')
+    print(best_model.model)
+    print(best_model.params)
+    print(model.get_meta_data())
+
+
 
