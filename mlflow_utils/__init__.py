@@ -20,6 +20,9 @@ def setup(models: str = 'test'):
     db_uri = f'mysql+pymysql://admin:NBACovid19!@10.0.0.150/{models}_db'
     if sys.platform == 'linux':
         mlflow.set_tracking_uri(db_uri)
+    elif sys.platform == 'darwin':
+        db_uri = f'mysql+pymysql://admin:NBACovid19!@127.0.0.1:3307/{models}_db'
+        mlflow.set_tracking_uri(db_uri)
 
 
 def test_data(data: str) -> pd.DataFrame:
