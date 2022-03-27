@@ -102,7 +102,7 @@ class ModelGenerator:
 
 if __name__ == '__main__':
     model = ModelGenerator()
-    best_model = model.get_best_model(problem='classification')
+    best_model = model.get_best_model(problem='regression')
     print(best_model.model)
     print(best_model.params)
     print(model.get_meta_data())
