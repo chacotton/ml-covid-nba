@@ -5,16 +5,39 @@ from data.constants import *
 from collections import defaultdict
 from importlib import import_module
 from functools import partial
+from typing import Union
 
 
 class WinDataset(Dataset):
+    """
+    Class to create and return Chance of Victory Dataset
+
+    Creates two types of datasets, classification and regression
+    Classification:
+        Outcome column: 0 - Away team won, 1 - Home team won
+        Other columns contain stats for all players active in game
+    Regression:
+        Team column: name of team for which points are shown
+        Team_pts column: points scored by team
+        Opponent column: name of opponent
+        Player columns: stats for each player on team
+        Opponent columns: team stats for opponent
+    * All empty values are encoded as np.nan
+    """
 
     players = [f'Player_{x}' for x in range(15)]
 
-    def __init__(self, problem="classification", stats="all", optimize=False):
+    def __init__(self, problem: str = "classification", stats: list = "all", optimize: bool = False):
+        """
+        Initialization function for win probability dataset
+        :param problem: str: default='classification', must be 'classification' or 'regression'
+        :param stats: default='all' or list of str with statistics to use (invalid stats will be ignored)
+        :param optimize: default = False, whether to use multiprocessing for creating dataset
+        :raises: AssertionError: raised if invalid problem passed
+        """
+
         assert problem in [CLASSIFICATION, REGRESSION], "Must be 'classification' or 'regression'"
-        super().__init__()
-        self.__name__ = 'Win Probability'
+        super().__init__(name='Win Probability')
         self.classification = problem == CLASSIFICATION
         self.regression = problem == REGRESSION
         if stats == 'all':
@@ -42,7 +65,14 @@ class WinDataset(Dataset):
                       "'pip install pandarallel' to install")
 
     @staticmethod
-    def _return_stats(x, stats, stat_tables):
+    def _return_stats(x, stats: dict, stat_tables: dict):
+        """
+        Helper method to return stats by player
+        :param x: item in pandas DataFrame
+        :param stats: self.stats
+        :param stat_tables: self._stat_tables
+        :return: pandas.Series: Series of player stats
+        """
         try:
             player = x.split('/')[-1]
             out = pd.Series(dtype='float64')
@@ -52,7 +82,12 @@ class WinDataset(Dataset):
             out = pd.Series([np.nan])
         return out
 
-    def _target(self, dataframe):
+    def _target(self, dataframe: pd.DataFrame) -> pd.DataFrame:
+        """
+        Method to return target columns
+        :param dataframe: columns relevant to creating target column
+        :return: pandas.DataFrame: target column(s)
+        """
         if self.classification:
             dataframe['Outcome'] = dataframe.apply(lambda x: 1 if x.Home_pts > x.Away_pts else 0, axis=1)
             dataframe = dataframe.loc[:, 'Outcome':]
@@ -66,7 +101,12 @@ class WinDataset(Dataset):
             dataframe = pd.concat([dataframe, new_df], axis=0)
         return dataframe
 
-    def _game_dataset(self, dataframe):
+    def _game_dataset(self, dataframe: pd.DataFrame) -> pd.DataFrame:
+        """
+        Method to return player statistics dataframe
+        :param dataframe: pandas.DataFrame with players to get stats for
+        :return: pandas.DataFrame
+        """
         self._stat_tables = self._load_stat_tables()
         return_stats = partial(self._return_stats, stats=self.stats, stat_tables=self._stat_tables)
         if self.regression:
@@ -80,7 +120,11 @@ class WinDataset(Dataset):
         self._stat_tables = None
         return dataframe
 
-    def _create_dataset(self):
+    def _create_dataset(self) -> pd.DataFrame:
+        """
+        Returns desired dataset
+        :return: pandas.DataFrame
+        """
         df = self._read_csv(self.files[GAMES])
         task = self._target(df.loc[:, :HOME])
         metrics = self._game_dataset(df.loc[:, PLAYER:])
