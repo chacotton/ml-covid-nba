@@ -84,10 +84,11 @@ class ModelGenerator:
         result = self.db.execute(CLASS.substitute({'run_id': self._model_id}))
         try:
             model_class = result.__next__()[0]
-            model_class = model_class.rsplit('.', 1)
+            model_class = model_class.rsplit('.', 2)
             model_class = getattr(import_module(model_class[0]), model_class[-1])
+            #self.model_params.pop('min_impurity_split', None)       # TODO: handle sklearn version conflict
             return self.model(model_class(**self.model_params), self.model_params)
-        except StopIteration:
+        except (StopIteration, TypeError):
             return self.model(self.best_model_name, self.model_params)
 
     def get_meta_data(self) -> dict:
