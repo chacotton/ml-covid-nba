@@ -119,7 +119,7 @@ class Dataset(ABC):
         """
         raise NotImplementedError
 
-    def _load_stat_tables(self) -> dict[str: pd.DataFrame]:
+    def _load_stat_tables(self) -> dict:
         """
         Instance method to load needed player stat tables on demand
         :return: dict: keyed by table name (str) with values of DataFrame holding table (pandas.DataFrame)

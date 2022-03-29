@@ -132,7 +132,7 @@ class WinDataset(Dataset):
             team_df = self._team_data()
             team_df = task.Opponent.apply(lambda team: team_df.loc[team, :]).add_prefix('Opponent_')
             metrics = pd.concat([metrics.reset_index(drop=True), team_df.reset_index(drop=True)], axis=1)
-        return pd.concat([task.reset_index(drop=True), metrics.reset_index(drop=True)], axis=1)
+        return pd.concat([task.reset_index(drop=True), metrics.reset_index(drop=True)], axis=1).fillna(0)
 
 
 if __name__ == '__main__':
