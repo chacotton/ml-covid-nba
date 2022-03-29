@@ -70,24 +70,29 @@ class Covid(Dataset):
         new_df.set_axis(['Player', 'Team', 'Deactivated'], axis=1, inplace=True)
         dfs = dict(tuple(df.groupby('Player')))
         new_df['Activated'] = new_df.apply(lambda row: self._return_to_play(row, dfs), axis=1)
-        return new_df.dropna(axis=0)
+        new_df = new_df.dropna(axis=0)
+        player_df = self._read_csv(self.files[PER_GAME])
+        new_df['Player_ID'] = new_df.Player.apply(lambda x: self._add_player_id(x, df=player_df))
+        return new_df.reset_index(drop=True)
 
-    def _add_player_id(self, row, df):
+    def _add_player_id(self, row: str, df: pd.DataFrame) -> str:
+        """
+        Helper function to add player id
+        :param row: str: player name
+        :param df: pandas.DataFrame to lookup id
+        :return: player id
+        """
         try:
             return df[df.Player.str.contains(row)].Player.iloc[0].split('\\', 1)[-1]
         except IndexError:
             return ''
-
 
     def _create_dataset(self) -> pd.DataFrame:
         """
         Implements abstract method to create dataset
         :return: pandas.DataFrame
         """
-        covid_df = self._covid_dataset()
-        player_df = self._read_csv(self.files[PER_GAME])
-        covid_df['Player_ID'] = covid_df.Player.apply(lambda x: self._add_player_id(x, df=player_df))
-        return covid_df.reset_index(drop=True)
+        return self._covid_dataset()
 
 
 if __name__ == '__main__':
