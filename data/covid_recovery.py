@@ -72,12 +72,22 @@ class Covid(Dataset):
         new_df['Activated'] = new_df.apply(lambda row: self._return_to_play(row, dfs), axis=1)
         return new_df.dropna(axis=0)
 
+    def _add_player_id(self, row, df):
+        try:
+            return df[df.Player.str.contains(row)].Player.iloc[0].split('\\', 1)[-1]
+        except IndexError:
+            return ''
+
+
     def _create_dataset(self) -> pd.DataFrame:
         """
         Implements abstract method to create dataset
         :return: pandas.DataFrame
         """
-        return self._covid_dataset()
+        covid_df = self._covid_dataset()
+        player_df = self._read_csv(self.files[PER_GAME])
+        covid_df['Player_ID'] = covid_df.Player.apply(lambda x: self._add_player_id(x, df=player_df))
+        return covid_df.reset_index(drop=True)
 
 
 if __name__ == '__main__':
