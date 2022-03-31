@@ -27,6 +27,9 @@ share/python-wheels/
 *.egg
 MANIFEST
 mlruns/
+*config.py
+instantclient_19_8/
+
 
 # Test files
 starter_script.ipynb
