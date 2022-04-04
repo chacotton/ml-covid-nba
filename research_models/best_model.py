@@ -52,12 +52,8 @@ class ModelGenerator:
         :return: None
         """
 
-        result = self.db.execute(VALID_MODELS.substitute({'type': problem}))
-        models = {k: v for v, k in result}
-        result = self.db.execute(BEST_PERFORMANCE.substitute({'run_ids': self.list_to_str(list(models.keys())),
-                                                              'metric': self.metrics[problem]}))
-        self._model_id = result.__next__()[0]
-        self.best_model_name = models[self._model_id]
+        result = self.db.execute(BEST.substitute({'type': problem, 'metric': self.metrics[problem]}))
+        self.best_model_name, self._model_id = next(result)
 
     def _get_best_model_params(self) -> dict:
         """
@@ -103,7 +99,7 @@ class ModelGenerator:
 
 if __name__ == '__main__':
     model = ModelGenerator()
-    best_model = model.get_best_model(problem='regression')
+    best_model = model.get_best_model(problem='classification')
     print(best_model.model)
     print(best_model.params)
     print(model.get_meta_data())
