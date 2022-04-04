@@ -27,6 +27,12 @@ share/python-wheels/
 *.egg
 MANIFEST
 mlruns/
+*config.py
+instantclient_19_8/
+
+
+# Test files
+starter_script.ipynb
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
