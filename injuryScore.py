@@ -22,7 +22,11 @@ import requests
 from sklearn.model_selection import train_test_split
 from matplotlib import pyplot
 
-class injuryScore: 
+class injuryScore:
+
+    #define inputs for creating and calculating injury score
+    # CSV - CSV of player inputted similar to BBall reference notation
+    # name - name of player, use full name from BBall reference
     def __init__(self, CSV, name) -> None:
         self.injuries = pd.read_csv("NBA_Injury_Data.csv")
         df_cities = pd.read_csv("stadiums.csv") 
@@ -66,6 +70,7 @@ class injuryScore:
     '''
     https://towardsdatascience.com/realigning-sports-leagues-with-a-clustering-algorithm-d6e9de9294d0
     '''
+    #calculates distance based on mathematical latitude and longitudinal calculations
     def dist(lat1, long1, lat2, long2):
         
         lat1, lat2 = np.deg2rad(lat1), np.deg2rad(lat2)
@@ -73,7 +78,8 @@ class injuryScore:
         EARTH_RADIUS = 3958.8
         return EARTH_RADIUS * np.arccos((np.sin(lat1) * np.sin(lat2)) + 
                             np.cos(lat1) * np.cos(lat2) * np.cos(long2 - long1))
-        
+    
+    #calculate distance with Haversine
     def calcDist(start, end):
         start_long = injuryScore.cities.loc[injuryScore.cities.Team == injuryScore.teams_expanded[start], 'Long'].tolist()[0]
         start_lat = injuryScore.cities.loc[injuryScore.cities.Team == injuryScore.teams_expanded[start], 'Lat'].tolist()[0]
@@ -81,6 +87,7 @@ class injuryScore:
         end_lat = injuryScore.cities.loc[injuryScore.cities.Team == injuryScore.teams_expanded[end], 'Lat'].tolist()[0]
         return haversine((start_lat, start_long),(end_lat, end_long), unit='mi')
     
+    #injury calculations based on labels
     def regressionCalc(injury):
         currInj = 'standard'
         injRegress = -0.10
@@ -99,11 +106,13 @@ class injuryScore:
 
         return injRegress
 
+    #get difference in day
     def getDayDiff(day1, day2): 
         x = datetime.strptime(day1, "%Y-%m-%d")
         y = datetime.strptime(day2, "%Y-%m-%d")
         return (x-y).days
 
+    #calculate injury score based on weights and flat injury for a given season
     def getInjuryScore():
         prevLoc = ''
         
