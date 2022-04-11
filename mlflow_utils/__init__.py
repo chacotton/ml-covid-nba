@@ -30,7 +30,7 @@ def setup(models: str = 'experiment'):
     :return: None
     :raises: AssertionError if passing invalid models parameter
     """
-    assert models in ['test', 'experiments']
+    assert models in ['test', 'experiment']
     db_uri = f'mysql+pymysql://admin:NBACovid19!@10.0.0.150/{models}_db'
     if sys.platform == 'linux':
         mlflow.set_tracking_uri(db_uri)
@@ -39,7 +39,7 @@ def setup(models: str = 'experiment'):
         mlflow.set_tracking_uri(db_uri)
 
 
-def test_data(data: str) -> dataset:
+def data(data: str) -> dataset:
     """
     Returns dummy data for type of problem
     :param data: 'ts', 'classification', or 'regression'
