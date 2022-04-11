@@ -1,4 +1,8 @@
-from typing import Final
+try:
+    from typing import Final
+except ImportError:
+    from typing import TypeVar
+    Final = TypeVar('Final')
 
 # Problem Type
 CLASSIFICATION: Final = "classification"

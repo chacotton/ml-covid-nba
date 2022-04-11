@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
 from data import Dataset
-from constants import *
+from data.constants import *
 from collections import defaultdict
 from importlib import import_module
 from functools import partial
-from typing import Union
+from itertools import chain, product
 
 
 class WinDataset(Dataset):
@@ -118,7 +118,13 @@ class WinDataset(Dataset):
             [pd.DataFrame(dataframe[col].to_list()).add_prefix(col + '_') for col in dataframe.columns],
             axis=1).dropna(axis=1, how='all')
         self._stat_tables = None
-        return dataframe
+        stats = chain.from_iterable(self.stats.values())
+        prefix = ['Home_', 'Away_'] if self.classification else ['']
+        df = pd.DataFrame()
+        for i, j in product(prefix, stats):
+            df[f'{i}{j}'] = dataframe[dataframe.columns[dataframe.columns.str.startswith(i) & dataframe.columns.str.endswith(j)]].sum(
+                axis=1)
+        return df
 
     def _create_dataset(self) -> pd.DataFrame:
         """
@@ -136,5 +142,5 @@ class WinDataset(Dataset):
 
 
 if __name__ == '__main__':
-    df = WinDataset(problem='classification', optimize=True).get_dataset()
+    df = WinDataset(problem='regression', optimize=True).get_dataset()
     print(df.head(10))
