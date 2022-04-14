@@ -39,7 +39,7 @@ def setup(models: str = 'experiment'):
         mlflow.set_tracking_uri(db_uri)
 
 
-def data(data: str) -> dataset:
+def test_data(data: str) -> dataset:
     """
     Returns dummy data for type of problem
     :param data: 'ts', 'classification', or 'regression'
