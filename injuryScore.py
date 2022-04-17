@@ -21,6 +21,7 @@ import pandas as pd
 import requests
 from sklearn.model_selection import train_test_split
 from matplotlib import pyplot
+pd.set_option('display.max_rows', None)
 
 class injuryScore:
     """
@@ -29,12 +30,12 @@ class injuryScore:
     CSV - CSV of player inputted similar to BBall reference notation
     name - name of player, use full name from BBall reference
     """
-    def __init__(self, CSV, name):
+    def __init__(self, id, year):
         self.injuries = pd.read_csv("NBA_Injury_Data.csv")
         df_cities = pd.read_csv("stadiums.csv") 
         self.cities = df_cities[df_cities['League'] == 'NBA']
-        self.player = pd.read_csv(CSV)
-        self.name = name
+        self.player = self.idToDf(id, year)
+        self.name = self.idToName(id)
         self.teams_expanded = {'DAL': 'Dallas Mavericks', 
                 'ORL': 'Orlando Magic', 
                 'SAS': 'San Antonio Spurs',
@@ -146,9 +147,12 @@ class injuryScore:
         link = link.replace('.html', '')
         link += '/gamelog/' + str(year)
         df = pd.read_html(link)[7]
+        df.columns = ['Rk','G','Date','Age','Tm','Home','Opp','Blank','GS','MP','FG','FGA','FG%','3P','3PA','3P%','FT','FTA','FT%','ORB','DRB','TRB','AST','STL','BLK','TOV','PF','PTS','GmSc','+/-']
+        df = df[df.Tm != 'Tm']
         return df
     '''
-    :param name: name of the player
+    Translate BBallRefID to a pandas dataframe
+    :param id: id of the player
     :param year: season year -> ex: represent 2016-2017 season as 2017
     :return: df for season played
     '''
@@ -159,9 +163,18 @@ class injuryScore:
         link = link.replace('.html', '')
         link += '/gamelog/' + str(year)
         df = pd.read_html(link)[7]
+        df.columns = ['Rk','G','Date','Age','Tm','Home','Opp','Blank','GS','MP','FG','FGA','FG%','3P','3PA','3P%','FT','FTA','FT%','ORB','DRB','TRB','AST','STL','BLK','TOV','PF','PTS','GmSc','+/-']
+        df = df[df.Tm != 'Tm']
         return df
-
-
+    '''
+    translate BBallRef ID to the name of the player
+    :param id: id of the player
+    :return name: name of the player
+    '''
+    def idToName(self, id):
+        name_to_ref = pd.read_csv("player_to_bballref.csv")
+        name_to_ref = name_to_ref.loc[name_to_ref['BBRefID'] == id]
+        return name_to_ref.BBRefName.values[0]
     '''
     calculates regressor based on distance travelled between games
     :param dist: distance travelled between games
