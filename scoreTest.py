@@ -2,5 +2,6 @@
 
 import injuryScore
 
-scoreGen = injuryScore.injuryScore("joel_embiid_2020_2021.csv", "Joel Embiid")
+scoreGen = injuryScore.injuryScore("embiijo01", 2020)
 print(scoreGen.getInjuryScore())
+
