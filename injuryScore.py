@@ -133,6 +133,34 @@ class injuryScore:
         x = datetime.strptime(day1, "%Y-%m-%d")
         y = datetime.strptime(day2, "%Y-%m-%d")
         return (x-y).days
+    '''
+    returns csv for a player across a NBA season
+    :param name: name of the player
+    :param year: season year -> ex: represent 2016-2017 season as 2017
+    :return: df for season played
+    '''
+    def playerToDf(self, name, year):
+        name_to_ref = pd.read_csv("player_to_bballref.csv")
+        name_to_ref = name_to_ref.loc[name_to_ref['BBRefName'] == name]
+        link = name_to_ref['BBRefLink'].values[0]
+        link = link.replace('.html', '')
+        link += '/gamelog/' + str(year)
+        df = pd.read_html(link)[7]
+        return df
+    '''
+    :param name: name of the player
+    :param year: season year -> ex: represent 2016-2017 season as 2017
+    :return: df for season played
+    '''
+    def idToDf(self, id, year):
+        name_to_ref = pd.read_csv("player_to_bballref.csv")
+        name_to_ref = name_to_ref.loc[name_to_ref['BBRefID'] == id]
+        link = name_to_ref['BBRefLink'].values[0]
+        link = link.replace('.html', '')
+        link += '/gamelog/' + str(year)
+        df = pd.read_html(link)[7]
+        return df
+
 
     '''
     calculates regressor based on distance travelled between games
