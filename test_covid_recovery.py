@@ -1,5 +1,4 @@
 import pandas as pd
-from injuryScore import injuryScore
 from data import Dataset
 from data.constants import *
 from data import covid_recovery
