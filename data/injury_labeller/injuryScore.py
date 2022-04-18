@@ -21,6 +21,7 @@ import pandas as pd
 import requests
 from sklearn.model_selection import train_test_split
 from matplotlib import pyplot
+from data import Dataset
 pd.set_option('display.max_rows', None)
 
 class injuryScore:
@@ -30,9 +31,13 @@ class injuryScore:
     CSV - CSV of player inputted similar to BBall reference notation
     name - name of player, use full name from BBall reference
     """
+    Data = Dataset.DataFile('covid_data/', 'NBA_Injury_Data.csv')
+    Stadiums = Dataset.DataFile('injury_labeller/', 'stadiums.csv')
+    IDs = Dataset.DataFile('injury_labeller/', 'player_to_bballref.csv')
+
     def __init__(self, id, year):
-        self.injuries = pd.read_csv("NBA_Injury_Data.csv")
-        df_cities = pd.read_csv("stadiums.csv") 
+        self.injuries = Dataset._read_csv(self.Data)
+        df_cities = Dataset._read_csv(self.Stadiums)
         self.cities = df_cities[df_cities['League'] == 'NBA']
         self.player = self.idToDf(id, year)
         self.name = self.idToName(id)
@@ -157,7 +162,7 @@ class injuryScore:
     :return: df for season played
     '''
     def idToDf(self, id, year):
-        name_to_ref = pd.read_csv("player_to_bballref.csv")
+        name_to_ref = Dataset._read_csv(self.IDs)
         name_to_ref = name_to_ref.loc[name_to_ref['BBRefID'] == id]
         link = name_to_ref['BBRefLink'].values[0]
         link = link.replace('.html', '')
@@ -172,7 +177,7 @@ class injuryScore:
     :return name: name of the player
     '''
     def idToName(self, id):
-        name_to_ref = pd.read_csv("player_to_bballref.csv")
+        name_to_ref = Dataset._read_csv(self.IDs)
         name_to_ref = name_to_ref.loc[name_to_ref['BBRefID'] == id]
         return name_to_ref.BBRefName.values[0]
     '''
