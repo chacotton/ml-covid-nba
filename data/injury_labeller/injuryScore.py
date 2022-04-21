@@ -5,7 +5,6 @@ import numpy as np
 import re
 from sklearn import preprocessing
 from sklearn.linear_model import LinearRegression
-from tensorflow import keras
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.metrics import mean_squared_error, r2_score
@@ -13,12 +12,7 @@ from urllib.request import urlopen
 from bs4 import BeautifulSoup
 from haversine import haversine
 import pprint
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.layers import LSTM
-from tensorflow.keras.layers import Dropout
 import pandas as pd
-import requests
 from sklearn.model_selection import train_test_split
 from matplotlib import pyplot
 from data import Dataset
