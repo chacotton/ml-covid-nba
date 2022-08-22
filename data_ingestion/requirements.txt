@@ -2,4 +2,4 @@ pandas
 beautifulsoup4==4.10.0
 numpy
 haversine
-
+lxml==4.8.0
