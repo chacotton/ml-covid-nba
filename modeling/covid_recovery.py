@@ -11,6 +11,6 @@ class NBACovid(NBAModel):
         super().__init__(*args, **kwargs)
 
     def predict(self, x: dict) -> float:
-        return 0.0
+        return 1.0
 
     # TODO: other methods
