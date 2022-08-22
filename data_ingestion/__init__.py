@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 from abc import ABC, abstractmethod
 from pathlib import Path
-from data.constants import *
+from data_ingestion.constants import *
 
 
 class Dataset(ABC):
@@ -60,7 +60,7 @@ class Dataset(ABC):
         :param name: DataFile call by self.files[CONSTANT_NAME]
         :return: pandas DataFrame
         """
-        return pd.read_csv(Path(__file__).parent / name.folder / name.file)
+        return pd.read_csv(Path(__file__).parent.parent/ 'data' / name.folder / name.file)
 
     @classmethod
     def _read_db(cls, name: str) -> pd.DataFrame:

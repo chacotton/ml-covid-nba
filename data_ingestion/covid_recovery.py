@@ -1,5 +1,5 @@
-from data import Dataset
-from data.constants import *
+from data_ingestion import Dataset
+from data_ingestion.constants import *
 import pandas as pd
 import numpy as np
 
