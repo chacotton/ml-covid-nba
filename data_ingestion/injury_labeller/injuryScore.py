@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 import numpy as np
 import re
@@ -137,7 +138,8 @@ class InjuryScore:
         :param year: season year -> ex: represent 2016-2017 season as 2017
         :return: df for season played
         """
-        name_to_ref = pd.read_csv("player_to_bballref.csv")
+        name_to_ref = pd.read_csv(os.environ.get('MLNBA_ROOT', '/') +
+                                  "/ml-covid-nba/data/injury_labeller/player_to_bballref.csv")
         name_to_ref = name_to_ref.loc[name_to_ref['BBRefName'] == name]
         link = name_to_ref['BBRefLink'].values[0]
         link = link.replace('.html', '')
