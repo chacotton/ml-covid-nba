@@ -10,30 +10,30 @@ class TestInjuryScore:
         assert InjuryScore.regressionCalc('an injury') == -.1
 
     def test_calcDist(self):
-        ic = InjuryScore("embiijo01", 2021)
-        assert ic.calcDist('NOP', 'GSW') == 1919.9550708693628
+        ic = InjuryScore("Joel Embiid", 2021)
+        assert ic.calc_dist('NOP', 'GSW') == 1919.9550708693628
 
     def test_day_diff(self):
         pass
 
     def test_getScore(self):
-        ic = InjuryScore("embiijo01", 2021)
+        ic = InjuryScore("Joel Embiid", 2021)
         ret_df = ic.getInjuryScore()
         assert isinstance(ret_df, pd.DataFrame)
 
     def test_isValid(self):
-        ic = InjuryScore("embiijo01", 2021)
+        ic = InjuryScore("Joel Embiid", 2021)
         ret_df = ic.getInjuryScore()
         df2 = ret_df[(ret_df['Injury and Fatigue Score'] < 0) | (ret_df['Injury and Fatigue Score'] > 1.0)]
         assert df2.empty
-        assert df2.shape[1] == 4
+        assert df2.shape[1] == 3
 
     def test_nameToDf(self):
-        ic = InjuryScore("embiijo01", 2021)
+        ic = InjuryScore("Joel Embiid", 2021)
         assert isinstance(ic.playerToDf('Joel Embiid', 2019),pd.DataFrame)
 
     def test_idToDf(self):
-        ic = InjuryScore("embiijo01", 2021)
+        ic = InjuryScore("Joel Embiid", 2021)
         assert isinstance(ic.idToDf('horfoal01', 2019),pd.DataFrame)
 
     def test_id_to_name(self):
