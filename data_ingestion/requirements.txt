@@ -4,4 +4,5 @@ numpy
 haversine
 lxml
 oracledb==1.0.3
+sqlalchemy
 git+https://github.com/chacotton/basketball_reference_scraper.git
