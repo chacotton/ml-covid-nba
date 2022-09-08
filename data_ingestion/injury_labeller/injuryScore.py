@@ -160,14 +160,9 @@ class InjuryScore:
         :param year: season year -> ex: represent 2016-2017 season as 2017
         :return: df for season played
         """
-        name_to_ref = Dataset._read_csv(self.IDs)
-        name_to_ref = name_to_ref.loc[name_to_ref['BBRefID'] == id]
-        link = name_to_ref['BBRefLink'].values[0]
-        link = link.replace('.html', '')
-        link += '/gamelog/' + str(year)
-        df = pd.read_html(link)[7]
-        df.columns = ['Rk','G','Date','Age','Tm','Home','Opp','Blank','GS','MP','FG','FGA','FG%','3P','3PA','3P%','FT','FTA','FT%','ORB','DRB','TRB','AST','STL','BLK','TOV','PF','PTS','GmSc','+/-']
-        df = df[df.Tm != 'Tm']
+        query = "select name from nba.player_ids where player_id = :player"
+        name_to_ref = Dataset._read_db(query, player=id).iloc[0,0]
+        df = get_game_logs(name_to_ref, year)
         return df
 
 
