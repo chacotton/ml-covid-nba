@@ -1,11 +1,11 @@
 import os
 from datetime import datetime
 import numpy as np
-import re
 from haversine import haversine
 import pandas as pd
 from data_ingestion import Dataset
-pd.set_option('display.max_rows', None)
+from basketball_reference_scraper.players import get_game_logs
+from basketball_reference_scraper.box_scores import get_box_scores
 EARTH_RADIUS = 3958.8
 
 
@@ -16,50 +16,56 @@ class InjuryScore:
     CSV - CSV of player inputted similar to BBall reference notation
     name - name of player, useful name from BBall reference
     """
-    Data = Dataset.DataFile('covid_data/', 'NBA_Injury_Data.csv')
-    Stadiums = Dataset.DataFile('injury_labeller/', 'stadiums.csv')
-    IDs = Dataset.DataFile('injury_labeller/', 'player_to_bballref.csv')
+    Data = "SELECT * FROM nba.active_roster where active = 0"  # Dataset.DataFile('covid_data/', 'NBA_Injury_Data.csv')
+    Stadiums = "SELECT * FROM nba.stadiums where League = 'NBA'"  # Dataset.DataFile('injury_labeller/', 'stadiums.csv')
+    IDs = "SELECT * FROM nba.player_ids"  # Dataset.DataFile('injury_labeller/', 'player_to_bballref.csv')
+    teams_expanded = {
+        'DAL': 'Dallas Mavericks',
+        'ORL': 'Orlando Magic',
+        'SAS': 'San Antonio Spurs',
+        'DEN': 'Denver Nuggets',
+        'BKN': 'Brooklyn Nets',
+        'BRK': 'Brooklyn Nets',
+        'UTA': 'Utah Jazz',
+        'WAS': 'Washington Wizards',
+        'GSW': 'Golden State Warriors',
+        'LAC': 'Los Angeles Clippers',
+        'LAL': 'Los Angeles Lakers',
+        'MEM': 'Memphis Grizzlies',
+        'MIL': 'Milwaukee Bucks',
+        'PHX': 'Phoenix Suns',
+        'PHO': 'Phoenix Suns',
+        'MIA': 'Miami Heat',
+        'IND': 'Indiana Pacers',
+        'SAC': 'Sacremento Kings',
+        'DET': 'Detroit Pistons',
+        'PHI': 'Philadelphia 76ers',
+        'NYK': 'New York Knicks',
+        'POR': 'Portland Trail Blazers',
+        'OKC': 'Oklahoma City Thunder',
+        'CLE': 'Cleveland Cavaliers',
+        'TOR': 'Toronto Raptors',
+        'NOP': 'New Orleans Pelicans',
+        'CHO': 'Charlotte Hornets',
+        'ATL': 'Atlanta Hawks',
+        'MIN': 'Minnesota Timberwolves',
+        'BOS': 'Boston Celtics',
+        'HOU': 'Houston Rockets',
+        'CHI': 'Chicago Bulls',
+    }
 
-    def __init__(self, id: str, year: int):
-        self.injuries = Dataset._read_csv(self.Data)
-        df_cities = Dataset._read_csv(self.Stadiums)
-        self.cities = df_cities[df_cities['League'] == 'NBA']
-        self.player = self.idToDf(id, year)
-        self.name = self.idToName(id)
-        self.teams_expanded = {
-                'DAL': 'Dallas Mavericks',
-                'ORL': 'Orlando Magic', 
-                'SAS': 'San Antonio Spurs',
-                'DEN': 'Denver Nuggets',
-                'BKN': 'Brooklyn Nets',
-                'BRK': 'Brooklyn Nets',
-                'UTA': 'Utah Jazz',
-                'WAS': 'Washington Wizards',
-                'GSW': 'Golden State Warriors',
-                'LAC': 'Los Angeles Clippers',
-                'LAL': 'Los Angeles Lakers',
-                'MEM': 'Memphis Grizzlies', 
-                'MIL': 'Milwaukee Bucks',
-                'PHX': 'Phoenix Suns',
-                'PHO': 'Phoenix Suns',
-                'MIA': 'Miami Heat',
-                'IND': 'Indiana Pacers',
-                'SAC': 'Sacremento Kings',
-                'DET': 'Detroit Pistons',
-                'PHI': 'Philadelphia 76ers', 
-                'NYK': 'New York Knicks',
-                'POR': 'Portland Trail Blazers',
-                'OKC': 'Oklahoma City Thunder', 
-                'CLE': 'Cleveland Cavaliers',
-                'TOR': 'Toronto Raptors',
-                'NOP': 'New Orleans Pelicans',
-                'CHO': 'Charlotte Hornets',
-                'ATL': 'Atlanta Hawks',
-                'MIN': 'Minnesota Timberwolves',
-                'BOS': 'Boston Celtics',
-                'HOU': 'Houston Rockets',
-                'CHI': 'Chicago Bulls',
-                }
+    def __init__(self, name: str, year: int):
+        self.injuries = Dataset._read_db(self.Data)
+        self.cities = Dataset._read_db(self.Stadiums)
+        self.cities.index = self.cities.pop('team')
+        self.player = get_game_logs(name, year).fillna(0)
+        self.name = name
+
+    def __call__(self, name: str, year: int):
+        self.player = get_game_logs(name, year).fillna(0)
+        self.name = name
+        return self
+
         
     @staticmethod
     def dist(lat1: float, long1: float, lat2: float, long2: float) -> float:
@@ -79,7 +85,7 @@ class InjuryScore:
         return EARTH_RADIUS * np.arccos((np.sin(lat1) * np.sin(lat2)) + 
                np.cos(lat1) * np.cos(lat2) * np.cos(long2 - long1))
 
-    def calcDist(self, start, end):
+    def calc_dist(self, start, end):
         """
         calculates distance between two points with the Haversine Formula
         For reference, https://en.wikipedia.org/wiki/Haversine_formula
@@ -88,11 +94,9 @@ class InjuryScore:
         :param end: destination city 3 letter code
         :return: haversine calculation in miles for the distance between two city
         """
-        start_long = self.cities.loc[self.cities.Team == self.teams_expanded[start], 'Long'].tolist()[0]
-        start_lat = self.cities.loc[self.cities.Team == self.teams_expanded[start], 'Lat'].tolist()[0]
-        end_long = self.cities.loc[self.cities.Team == self.teams_expanded[end], 'Long'].tolist()[0]
-        end_lat = self.cities.loc[self.cities.Team == self.teams_expanded[end], 'Lat'].tolist()[0]
-        return haversine((start_lat, start_long), (end_lat, end_long), unit='mi')
+        start = tuple(self.cities.loc[self.teams_expanded[start], 'lat':'LONG'])
+        end = tuple(self.cities.loc[self.teams_expanded[end], 'lat':'LONG'])
+        return haversine(start, end, unit='mi')
 
     @staticmethod
     def regressionCalc(injury: str) -> float:
@@ -205,15 +209,6 @@ class InjuryScore:
             3: .10
         }
         return days_bonus.get(days, .15)
-        #if days == 1:
-        #    daysBonus = 0
-        #elif days == 2:
-        #    daysBonus = 0.05
-        #elif days == 3:
-        #    daysBonus = 0.10
-        #else:
-        #    daysBonus = 0.15
-        #return daysBonus
 
     def minsRegress(self, minutes):
         """
@@ -221,18 +216,16 @@ class InjuryScore:
         :param minutes: time played in the previous game
         :return: regressor based on minutes based on the previous game
         """
-        if re.search('[a-zA-Z]', minutes) == False:
-            if int(minutes) < 20:
-                minsRegressor = 0
-            elif int(minutes) < 30:
-                minsRegressor = -0.10
-            elif int(minutes) < 40:
-                minsRegressor = -0.15
-            else: 
-                minsRegressor = -0.20
+        mins = int(minutes) if minutes.isnumeric() else 0
+        if mins < 20:
+            mins_regressor = 0
+        elif mins < 30:
+            mins_regressor = -0.10
+        elif mins < 40:
+            mins_regressor = -0.15
         else:
-            minsRegressor = 0
-        return minsRegressor
+            mins_regressor = -0.20
+        return mins_regressor
 
     def genInitLoc(self):
         """
@@ -240,12 +233,11 @@ class InjuryScore:
         :param self: class variable
         :return: 3 letter code for location of the first game of the season
         """
-        prevLoc = ''
-        if self.player['Date'].iloc[0] == None:
-            prevLoc = self.player['Home'].iloc[0]
+        if self.player['HOME/AWAY'].iloc[0] == 'HOME':
+            prev_loc = self.player['TEAM'].iloc[0]
         else: 
-            prevLoc = self.player['Opp'].iloc[0]
-        return prevLoc
+            prev_loc = self.player['OPPONENT'].iloc[0]
+        return prev_loc
 
     def getInjuryScore(self):
         """
@@ -253,47 +245,47 @@ class InjuryScore:
         :param self: class variable
         :return: DF with extra column for Injury and Fatigue Score for the player
         """
-        #get date and location for the first game of the season
-        prevDate = self.player['Date'].iloc[0]  
-        #prevLoc = InjuryScore.genInitLoc(self)
-        prevLoc = self.genInitLoc()
+        # get date and location for the first game of the season
+        prev_date = self.player['DATE'].iloc[0]
+        prev_loc = self.genInitLoc()
 
-        cnt = 0 #counter for debugging
-        values = [1] #use list to store Injury and Fatigue Score
+        cnt = 0  # counter for debugging
+        values = [1]  # use list to store Injury and Fatigue Score
 
-        for row in self.player.itertuples():
-            if row.MP[0:2] != 'In' and row.MP[0:2] != 'Di':  #Columns blocked off when player is out of the Game
-                #0.6 denotes out of game but we start player off at 0.8 one return to account for rest and lack of game speed
+        for _, row in self.player.iterrows():
+            if row.MP[0:2] != 'In' and row.MP[0:2] != 'Di':  # Columns blocked off when player is out of the Game
+                # 0.6 denotes out of game, but we start player
+                # off at 0.8 one return to account for rest and lack of game speed
                 if values[-1] == 0.6:
                     values[-1] = 0.8
-                #get distance between previous game and next game(initial game counts as 0 travel distance) and set location for the next game
-                if row.Home == '@':
-                    dist = self.calcDist(prevLoc, row.Opp)
-                    prevLoc = row.Opp
+                # get distance between previous game and next game(initial
+                # game counts as 0 travel distance) and set location for the next game
+                if row['HOME/AWAY'] == 'AWAY':
+                    dist = self.calc_dist(prev_loc, row.OPPONENT)
+                    prev_loc = row.OPPONENT
                 else:
-                    dist = self.calcDist(prevLoc, row.Tm)
-                    prevLoc = row.Tm
+                    dist = self.calc_dist(prev_loc, row.TEAM)
+                    prev_loc = row.TEAM
 
-                #calculate difference in days between days
-                days = self.getDayDiff(row.Date, prevDate)
-                #reset date
-                prevDate = row.Date
+                # calculate difference in days between days
+                days = (row.DATE - prev_date).days
+                prev_date = row.DATE
 
-                #calculate injury regressor from injury database
-                result = self.injuries[(self.injuries['Relinquished'] == self.name) & (self.injuries['Date'] == row.Date)]
-                if result.empty == False:
-                    injury = self.regressionCalc(result.Notes)
+                # calculate injury regressor from injury database
+                result = self.injuries[(self.injuries['player'] == self.name) & (self.injuries['game_date'] == row.DATE)]
+                if not result.empty:
+                    injury = -.1  # self.regressionCalc(result.Notes)
                 else: 
                     injury = 0
 
-                #calculate distance regressor, time regressor, and minutes regressor
+                # calculate distance regressor, time regressor, and minutes regressor
                 distRegress = self.distRegressor(dist)
                 daysBonus = self.timeRegressor(days)
                 minsRegressor = self.minsRegress(row.MP[0:2])
                 
-                #use predetermined weights to calculate health value
-                healthValue = values[-1] + (0.33 *  distRegress) + (0.33 *  minsRegressor) + (0.33 * daysBonus) + injury
-                #cap value at 1
+                # use predetermined weights to calculate health value
+                healthValue = values[-1] + (0.33 * distRegress) + (0.33 * minsRegressor) + (0.33 * daysBonus) + injury
+                # cap value at 1
                 if healthValue >= float(1):
                     values.append(1.0)
                 else:
@@ -301,8 +293,58 @@ class InjuryScore:
                 cnt += 1
             else:
                 values.append(0.6)
-        #remove initial value, add to DF and return important columns
-        values = values[1:]
-        self.player['Injury and Fatigue Score'] = values
-        return self.player[['Rk', 'G', 'Date', 'Injury and Fatigue Score']]
-                
+        # remove initial value, add to DF and return important columns
+        self.player['Injury and Fatigue Score'] = values[1:]
+        return self.player[['DATE', 'Injury and Fatigue Score', 'MP']]
+
+    @staticmethod
+    def pie_score(log, p):
+        t = 'Team Totals'
+        log.index = log.PLAYER
+        log.loc[p, 'FG':] = log.loc[p, 'FG':].astype(float)
+        log.loc[t, 'FG':] = log.loc[t, 'FG':].astype(float)
+        return (log.loc[p, 'PTS'] + log.loc[p, 'FG'] + log.loc[p, 'FT'] - log.loc[p, 'FGA'] - log.loc[p, 'FTA'] +
+                log.loc[p, 'DRB'] + log.loc[p, 'ORB'] / 2 + log.loc[p, 'AST'] + \
+                log.loc[p, 'STL'] + log.loc[p, 'BLK'] / 2 - log.loc[p, 'PF'] - log.loc[p, 'TOV']) / (
+                           log.loc[t, 'PTS'] + log.loc[t, 'FG'] + log.loc[t, 'FT'] - log.loc[p, 'FTA'] - \
+                           log.loc[t, 'FGA'] + log.loc[t, 'DRB'] + log.loc[t, 'ORB'] / 2 + log.loc[t, 'AST'] + log.loc[
+                               t, 'STL'] + log.loc[t, 'BLK'] / 2 - log.loc[t, 'PF'] - log.loc[t, 'TOV'])
+
+    def pie_health_score(self):
+        prev_date = self.player['DATE'].iloc[0]
+        prev_loc = self.genInitLoc()
+        query = "select pie from nba.player_stats where player = :player"
+        base_pie = Dataset._read_db(query, player=self.name).iloc[0,0]
+        values = []  # use list to store Injury and Fatigue Score
+
+        for i, row in self.player.iterrows():
+            if row['HOME/AWAY'] == 'AWAY':
+                dist = self.calc_dist(prev_loc, row.OPPONENT)
+                prev_loc = row.OPPONENT
+            else:
+                dist = self.calc_dist(prev_loc, row.TEAM)
+                prev_loc = row.TEAM
+            # calculate difference in days between days
+            days = (row.DATE - prev_date).days
+            prev_date = row.DATE
+
+            # calculate injury regressor from injury database
+            result = self.injuries[
+                (self.injuries['player'] == self.name) & (self.injuries['game_date'] == row.DATE)]
+            injury = 0 if not result.empty else 1
+            if row.MP[0:2] != 'In' and row.MP[0:2] != 'Di':  # Columns blocked off when player is out of the Game
+                if i == 0:
+                    health_value = 1
+                else:
+                    log = get_box_scores(row.DATE, row.TEAM, row.OPPONENT)[row.TEAM]
+                    score = self.pie_score(log, self.name)
+                    score = 0 if score < 0 else score
+                    health_value = score/base_pie
+                health_value = 1 if health_value > 1 else health_value
+                health_value = .001 if health_value <= 0 else health_value
+                row = [row.DATE, health_value, dist, days, int(row.MP[0:2]), injury]
+                values.append(row)
+            else:
+                values.append([row.DATE, np.nan, dist, days, 0, injury])
+        return pd.DataFrame(values, columns=['Date', 'Health', 'Distance', 'Days', 'MP', 'Injured'])
+

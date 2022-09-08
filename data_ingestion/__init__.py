@@ -3,7 +3,13 @@ import pandas as pd
 import numpy as np
 from abc import ABC, abstractmethod
 from pathlib import Path
+import oracledb
 from data_ingestion.constants import *
+from sqlalchemy import create_engine
+import sys
+oracledb.version = "8.3.0"
+sys.modules["cx_Oracle"] = oracledb
+import cx_Oracle
 
 
 class Dataset(ABC):
@@ -18,6 +24,15 @@ class Dataset(ABC):
         PLAY_BY_PLAY_21: DataFile('player_data/', 'nba_play_by_play_2021_2022.csv'),
         SHOOTING_21: DataFile('player_data/', 'nba_shooting_2021_2022.csv'),
         TEAM: DataFile('team_data/', 'nba_team_21-22.csv')
+    }
+
+    db_args = {
+        "user": "nba",
+        "password": "SeniorDesign22",
+        "dsn": "nba_low",
+        "config_dir": Path(__file__).resolve().parent / Path("wallet"),
+        "wallet_location": Path(__file__).resolve().parent / Path("wallet"),
+        "wallet_password": "password1",
     }
 
     def __init__(self, name: str):
@@ -53,6 +68,17 @@ class Dataset(ABC):
         last, player = name[-1].split('\\', 1)
         return player, first, last
 
+    @staticmethod
+    def _get_engine():
+        return create_engine(
+            f"oracle+cx_oracle://{Dataset.db_args['user']}:{Dataset.db_args['password']}@{Dataset.db_args['dsn']}",
+            connect_args={
+                "config_dir": Dataset.db_args['config_dir'],
+                "wallet_location": Dataset.db_args['wallet_location'],
+                "wallet_password": Dataset.db_args['wallet_password']
+            }
+        )
+
     @classmethod
     def _read_csv(cls, name: DataFile) -> pd.DataFrame:
         """
@@ -63,14 +89,15 @@ class Dataset(ABC):
         return pd.read_csv(Path(__file__).parent.parent/ 'data' / name.folder / name.file)
 
     @classmethod
-    def _read_db(cls, name: str) -> pd.DataFrame:
+    def _read_db(cls, command: str, **kwargs) -> pd.DataFrame:
         """
         Method to return dataset from database
-        TODO: update this method to return full dataset
-        :param name: str, 'covid' or 'win'
+        :param command: sql statement to execute
         :return: pandas DataFrame
         """
-        raise NotImplementedError
+        with cls._get_engine().connect() as conn:
+            df = pd.read_sql(command, conn, params=kwargs)
+        return df
 
     @classmethod
     def _player_data(cls, name: DataFile) -> pd.DataFrame:
