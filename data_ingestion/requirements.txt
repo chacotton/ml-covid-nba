@@ -2,6 +2,6 @@ pandas
 beautifulsoup4
 numpy
 haversine
-lxml==4.8.0
+lxml
 oracledb==1.0.3
 git+https://github.com/chacotton/basketball_reference_scraper.git
