@@ -1,0 +1,1 @@
+select * from NBA.SCHEDULE where HOME = :team;
