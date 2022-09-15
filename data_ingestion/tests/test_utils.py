@@ -1,14 +1,16 @@
 import pandas as pd
-from data_ingestion.utils import _get_engine, read_table, write_db
+import pytest
+import time
+from data_ingestion.utils import get_engine, read_table, write_db, timeout
 
-sql_file = "queries/test.sql"
+sql_file = "test.sql"
 sql_command = "SELECT * FROM NBA.SCHEDULE"
 sql_command_bind = "SELECT * FROM NBA.SCHEDULE WHERE HOME = :team"
 
 
 class TestUtils:
     def test_get_engine(self):
-        engine = _get_engine()
+        engine = get_engine()
         with engine.connect() as conn:
             assert conn
 
@@ -21,3 +23,7 @@ class TestUtils:
         assert write_db(sql_file, team='Dallas Mavericks')
         assert write_db(sql_command)
         assert write_db(sql_command_bind, team='Dallas Mavericks')
+
+    def test_timeout(self):
+        with pytest.raises(TimeoutError):
+            timeout(3, time.sleep, func_args=(4,))

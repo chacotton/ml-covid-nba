@@ -4,6 +4,39 @@ except ImportError:
     from typing import TypeVar
     Final = TypeVar('Final')
 
+TEAMS: Final = {
+     'Dallas Mavericks': 'DAL',
+     'Orlando Magic': 'ORL',
+     'San Antonio Spurs': 'SAS',
+     'Denver Nuggets': 'DEN',
+     'Brooklyn Nets': 'BRK',
+     'Utah Jazz': 'UTA',
+     'Washington Wizards': 'WAS',
+     'Golden State Warriors': 'GSW',
+     'Los Angeles Clippers': 'LAC',
+     'Los Angeles Lakers': 'LAL',
+     'Memphis Grizzlies': 'MEM',
+     'Milwaukee Bucks': 'MIL',
+     'Phoenix Suns': 'PHO',
+     'Miami Heat': 'MIA',
+     'Indiana Pacers': 'IND',
+     'Sacramento Kings': 'SAC',
+     'Detroit Pistons': 'DET',
+     'Philadelphia 76ers': 'PHI',
+     'New York Knicks': 'NYK',
+     'Portland Trail Blazers': 'POR',
+     'Oklahoma City Thunder': 'OKC',
+     'Cleveland Cavaliers': 'CLE',
+     'Toronto Raptors': 'TOR',
+     'New Orleans Pelicans': 'NOP',
+     'Charlotte Hornets': 'CHO',
+     'Atlanta Hawks': 'ATL',
+     'Minnesota Timberwolves': 'MIN',
+     'Boston Celtics': 'BOS',
+     'Houston Rockets': 'HOU',
+     'Chicago Bulls': 'CHI'
+}
+
 # Problem Type
 CLASSIFICATION: Final = "classification"
 REGRESSION: Final = "regression"
