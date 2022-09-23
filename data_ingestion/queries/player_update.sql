@@ -14,7 +14,7 @@ USING ( SELECT
 :HMOZ_FGP "3-10_FG%", :OZMO6_FGP "10-16_FG%", :O6MHP_FGP "16-3P_FG%", :HP_FGP "3P_FG%", :TP_FG_ASTP "2P_FG_AST%",
 :HP_FG_ASTP "3P_FG_AST%", :PFGA_DUNK "%FGA_DUNK", :N_DUNK "#_DUNK", :PHPA "%3PA", :ATT_HEAVE "Att_Heave", :N_HEAVE "#_Heave", :SEASON SEASON, :PIE PIE
 FROM dual) src
-ON (dest.PLAYER_ID = src.PLAYER_ID)
+ON (dest.PLAYER_ID = src.PLAYER_ID and dest.SEASON = src.SEASON)
 WHEN MATCHED THEN
     UPDATE SET G = src.G, MP = src.MP, FG = src.FG, "2P" = src."2P", "3P" = src."3P", EFG = src.EFG,
                FT = src.FT, TS = src.TS, FTR = src.FTR, "3PAr" = src."3PAr", "FG+" = src."FG+", "2P+" = src."2P+", "3P+" = src."3P+",

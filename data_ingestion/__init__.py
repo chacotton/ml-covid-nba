@@ -1,3 +1,4 @@
+from data_ingestion.main import join_player_stats, update_player_stats, update_team_stats, update_roster
 from collections import namedtuple
 import pandas as pd
 import numpy as np
@@ -10,6 +11,7 @@ import sys
 oracledb.version = "8.3.0"
 sys.modules["cx_Oracle"] = oracledb
 import cx_Oracle
+
 
 
 class Dataset(ABC):
