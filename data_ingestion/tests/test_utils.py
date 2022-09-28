@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 import time
-from data_ingestion.utils import get_engine, read_table, write_db, timeout
+from data_ingestion.db_utils import get_engine, read_table, write_db, timeout
 
 sql_file = "test.sql"
 sql_command = "SELECT * FROM NBA.SCHEDULE"

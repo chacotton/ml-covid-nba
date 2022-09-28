@@ -2,7 +2,7 @@ import os
 import numpy as np
 from haversine import haversine
 import pandas as pd
-from data_ingestion.utils import read_table, timeout, write_db
+from data_ingestion.db_utils import read_table, timeout, write_db
 from basketball_reference_scraper.players import get_game_logs
 from basketball_reference_scraper.box_scores import get_box_scores
 from collections import defaultdict

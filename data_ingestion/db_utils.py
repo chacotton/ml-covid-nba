@@ -82,5 +82,3 @@ def timeout(timeout_, func, attempts=1, func_args=(), func_kwargs={}):
         elif p1.exitcode == 0:
             return queue.get()
     raise TimeoutError
-
-

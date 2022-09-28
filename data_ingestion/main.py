@@ -5,53 +5,19 @@ import datetime
 import numpy as np
 import pandas as pd
 from sqlalchemy.engine import Connection
-from data_ingestion.utils import read_table, write_db, timeout, get_engine
+from data_ingestion.db_utils import read_table, write_db, timeout, get_engine
 from basketball_reference_scraper.box_scores import get_box_scores
-from basketball_reference_scraper.players import get_stats
 from basketball_reference_scraper.teams import get_team_ratings
 from data_ingestion.constants import TEAMS
 from data_ingestion.injury_labeller.injuryScore import InjuryScore
+from data_ingestion.stat_utils import join_player_stats, is_active
 
 games_today = "SELECT GAME_DATE, HOME, AWAY FROM NBA.SCHEDULE WHERE GAME_DATE = :today"
-stat_tables = ['ADVANCED', 'PER_GAME', 'ADJ_SHOOTING', 'PBP', 'SHOOTING']
-shooting_cols = ['SEASON', 'AGE', 'TEAM', 'LEAGUE', 'POS', 'G', 'FG%', 'Dist', '2P_FGA%', '0-3FT_FGA%', '3-10_FGA%',
-                 '10-16FT_FGA%', '16-3PFT_FGA%', '3P_FGA%', '2P_FG%', '0-3_FG%', '3-10_FG%', '10-16_FG%', '16-3P_FG%',
-                 '3P_FG%', '2P_FG_AST%', '3P_FG_AST%', '%FGA_DUNK', '#_DUNK', '%3PA', '3P%', 'Att_Heave', '#_Heave']
-pbp_base_cols = {'PG%': 6, 'SG%': 7, 'SF%': 8, 'PF%': 9, 'C%': 10}
-pbp_cols = ['SEASON', 'AGE', 'TEAM', 'LEAGUE', 'POS', 'G', 'PE_PG%', 'PE_SG%', 'PE_SF%',
-            'PE_PF%', 'PE_C%', '+/-_OnCourt', '+/-_On-Off', 'TO_BadPass', 'TO_LostBall', 'Shoot_FL_COM',
-            'Off._FL_COM', 'Shoot_FL_DRN', 'Off._FL_DRN', 'PGA', 'And1', 'Blkd']
 char_replace = str.maketrans({'0': 'Z', '1': 'O', '2': 'T', '3': 'H', '%': 'P', '+': 'L', '-': 'M', '/': 'S',
                               '.': 'D', '#': 'N'})
 
 
-def join_player_stats(player_id: str, year: int) -> pd.DataFrame:
-    df = get_stats(player_id, stat_type=stat_tables[0]).dropna(axis=1)
-    for stat in stat_tables[1:]:
-        new_df = timeout(10, get_stats, func_args=(player_id, stat)).drop(['MP'], axis=1)
-        new_df = new_df.loc[:, ~new_df.columns.str.match('Unnamed')]
-        if not pd.api.types.is_numeric_dtype(new_df.G):
-            new_df = new_df[~new_df.G.str.contains('Did Not Play')]
-            new_df.loc[:, 'G':] = new_df.loc[:, 'G':].astype(float)
-        if stat == stat_tables[-1]:
-            new_df.columns = shooting_cols
-            new_df.drop(['3P%'], axis=1, inplace=True)
-        if stat == stat_tables[-2]:
-            for c in pbp_base_cols:
-                new_df[c] = new_df[c].apply(lambda x: float(x.rstrip('%'))/100 if '%' in str(x) else x)
-            new_df.columns = pbp_cols
-        new_df = new_df.loc[:, ~new_df.columns.duplicated()]
-        if stat == stat_tables[2]:
-            df.drop(['FG', '2P', '3P', 'FT'], axis=1, inplace=True)
-        df = df.merge(new_df)
-    df.columns = [c.replace(' ', "_") for c in df.columns]
-    df['EFG'] = df['eFG%']
-    df.drop(['GS', 'LEAGUE'], axis=1, inplace=True)
-    df.replace([np.nan], [None], inplace=True)
-    return df.loc[df.SEASON == year]
-
-
-def update_player_stats(games: pd.DataFrame, connecion: Connection) -> bool:
+def update_player_stats(games: pd.DataFrame, connection: Connection) -> bool:
     names = read_table("SELECT player_id, name FROM NBA.PLAYER_IDS", index_col="player_id")
     for _, game in games.iterrows():
         dfs = timeout(10, get_box_scores, attempts=3, func_args=(game.game_date, TEAMS[game.home], TEAMS[game.away]))
@@ -72,7 +38,7 @@ def update_player_stats(games: pd.DataFrame, connecion: Connection) -> bool:
                     stats['PLAYER'] = df[df.player_id == player].PLAYER[0]
                 stats['PLAYER_ID'] = player
                 stats['PIE'] = InjuryScore.pie_score(df, player)
-                write_db('player_update.sql', connection=connecion, **stats)
+                write_db('player_update.sql', connection=connection, **stats)
     return len(games) > 0
 
 
