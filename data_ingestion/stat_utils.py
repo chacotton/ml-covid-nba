@@ -50,3 +50,26 @@ def is_active(day: date, player: str):
         date_to_nullable=day.strftime('%m/%d/%Y')
     ).player_game_logs.get_data_frame()
     return player in c['PLAYER_NAME'].values
+
+def is_injured(day: date, player: str):
+    curr_season = day.year if day.month < 7 else day.year + 1
+    c = playergamelogs.PlayerGameLogs(
+        season_nullable=f'{curr_season - 1}-{curr_season % 100}',
+        date_from_nullable=day.strftime('%m/%d/%Y'),
+        date_to_nullable=day.strftime('%m/%d/%Y')
+    ).player_game_logs.get_data_frame()
+    games = set(c['GAME_ID'].tolist())
+    for game in games:
+        box = boxscore.BoxScore(game)
+        home = box.home_team_player_stats.get_dict()
+        away = box.away_team_player_stats.get_dict()
+        for p in away:
+            if str(p['firstName'] + " " + p['familyName']) == player:
+                if p['status'] == 'ACTIVE':
+                    return False
+                elif p['status'] == 'INACTIVE':
+                    if "INJURY" in p['notPlayingReason']:
+                        return True
+                    else:
+                        return False
+    return None
