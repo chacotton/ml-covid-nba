@@ -1,6 +1,7 @@
-from data_ingestion import join_player_stats, update_player_stats, update_team_stats, update_roster
+from data_ingestion import update_player_stats, update_team_stats, update_roster
 import pytest
-from data_ingestion.utils import get_engine, read_table
+from data_ingestion.stat_utils import join_player_stats
+from data_ingestion.db_utils import get_engine, read_table
 from datetime import date
 
 schedule = "SELECT * FROM NBA.SCHEDULE WHERE GAME_DATE = :day FETCH NEXT 1 ROWS ONLY"
