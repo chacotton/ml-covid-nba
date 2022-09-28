@@ -52,7 +52,10 @@ def is_active(day: date, player: str):
     ).player_game_logs.get_data_frame()
     return player in c['PLAYER_NAME'].values
 
-def is_injured(day: date, player: str):
+#return dictionary of status on a given day
+#covid key value denoted as 'INACTIVE_HEALTH_AND_SAFETY_PROTOCOLS'
+def is_injured(day: date):
+    d = {}
     curr_season = day.year if day.month < 7 else day.year + 1
     c = playergamelogs.PlayerGameLogs(
         season_nullable=f'{curr_season - 1}-{curr_season % 100}',
@@ -65,12 +68,12 @@ def is_injured(day: date, player: str):
         home = box.home_team_player_stats.get_dict()
         away = box.away_team_player_stats.get_dict()
         for p in away:
-            if str(p['firstName'] + " " + p['familyName']) == player:
-                if p['status'] == 'ACTIVE':
-                    return False
-                elif p['status'] == 'INACTIVE':
-                    if "INJURY" in p['notPlayingReason']:
-                        return True
-                    else:
-                        return False
-    return None
+            #print(p)
+            if p['status'] == 'ACTIVE':
+                d[p['firstName'] + " " + p['familyName']] = 'ACTIVE'
+            else:
+                if 'notPlayingReason' not in p:
+                    d[p['firstName'] + " " + p['familyName']] = None
+                else:
+                    d[p['firstName'] + " " + p['familyName']] = p['notPlayingReason']
+    return d
