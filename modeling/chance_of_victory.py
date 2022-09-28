@@ -1,7 +1,7 @@
 from modeling import NBAModel
 import pandas as pd
 from datetime import date
-from utils import read_table, write_db, get_engine
+from modeling.utils import read_table, write_db
 
 
 class NBACoV(NBAModel):
