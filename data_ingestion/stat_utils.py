@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from datetime import date
 from nba_api.stats.endpoints import playergamelogs
+from nba_api.live.nba.endpoints import boxscore
 from basketball_reference_scraper.players import get_stats
 from data_ingestion.db_utils import timeout
 
