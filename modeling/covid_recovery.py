@@ -1,4 +1,5 @@
 from modeling import NBAModel
+import mlflow.pyfunc
 
 
 class NBACovid(NBAModel):
@@ -14,3 +15,4 @@ class NBACovid(NBAModel):
         return 0.0
 
     # TODO: other methods
+

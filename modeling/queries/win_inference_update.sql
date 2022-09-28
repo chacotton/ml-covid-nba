@@ -1,0 +1,3 @@
+UPDATE NBA.SCHEDULE
+SET AWAY_WIN_PROB = :away_win, HOME_WIN_PROB = :home_win
+WHERE GAME_DATE = :game_date AND HOME = :home;
