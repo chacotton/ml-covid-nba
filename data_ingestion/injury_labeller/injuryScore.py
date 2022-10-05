@@ -36,7 +36,7 @@ class InjuryScore:
         'PHO': 'Phoenix Suns',
         'MIA': 'Miami Heat',
         'IND': 'Indiana Pacers',
-        'SAC': 'Sacremento Kings',
+        'SAC': 'Sacramento Kings',
         'DET': 'Detroit Pistons',
         'PHI': 'Philadelphia 76ers',
         'NYK': 'New York Knicks',

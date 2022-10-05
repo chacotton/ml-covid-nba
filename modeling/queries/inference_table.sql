@@ -198,8 +198,7 @@ select  t1.game_date,
         t2."#_DUNK_AWAY",
         t2."%3PA_AWAY",
         t2."Att_Heave_AWAY",
-        t2."#_Heave_AWAY",
-        t1.winner
+        t2."#_Heave_AWAY"
 from (select schedule.game_date as game_date,
     schedule.home as home,
     schedule.away as away,
