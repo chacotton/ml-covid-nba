@@ -44,15 +44,19 @@ def reformat_query(func):
 
 
 @reformat_query
-def read_table(command: str, index_col: str = None, **kwargs) -> pd.DataFrame:
+def read_table(command: str, connection: Connection = None, index_col: str = None, **kwargs) -> pd.DataFrame:
     """
     Method to return dataset from database
     :param command: sql statement to execute
+    :param connection: sql alchemy connection object
     :param index_col: name of primary key if desired as index
     :return: pandas DataFrame
     """
-    with get_engine().connect() as conn:
-        df = pd.read_sql(command, conn, params=kwargs, index_col=index_col)
+    if connection is None:
+        with get_engine().connect() as conn:
+            df = pd.read_sql(command, conn, params=kwargs, index_col=index_col)
+    else:
+        df = pd.read_sql(command, connection, params=kwargs, index_col=index_col)
     return df
 
 
