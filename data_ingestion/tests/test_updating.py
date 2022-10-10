@@ -30,9 +30,9 @@ class TestUpdate:
             assert update_team_stats(game, conn)
             assert not update_team_stats(no_game, conn)
 
-    def test_update_active_roster(self):
-        game = read_table(schedule, day=date(2022, 1, 10))
-        no_game = read_table(schedule, day=date(2022, 7, 1))
-        with get_engine().connect() as conn:
-            assert update_roster(game, conn)
-            assert not update_roster(no_game, conn)
+    #def test_update_active_roster(self):
+    #    game = read_table(schedule, day=date(2022, 1, 10))
+    #    no_game = read_table(schedule, day=date(2022, 7, 1))
+    #    with get_engine().connect() as conn:
+    #        assert update_roster(game, conn)
+    #        assert not update_roster(no_game, conn)
