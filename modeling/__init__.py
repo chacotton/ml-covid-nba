@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import mlflow
 import pandas as pd
+from contextlib import redirect_stdout
+import os
 
 
 class NBAModel(ABC):
@@ -16,7 +18,10 @@ class NBAModel(ABC):
     @staticmethod
     def _load_model(model_file: str):
         """Load serialized model based on file reference"""
-        return mlflow.pyfunc.load_model(model_file)
+        with open(os.devnull, 'w') as devnull:
+            with redirect_stdout(devnull):
+                model = mlflow.pyfunc.load_model(model_file)
+        return model
 
     def _test_model(self):
         """Run model on dummy data to produce output"""
