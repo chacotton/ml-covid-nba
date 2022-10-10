@@ -5,6 +5,8 @@ from nba_api.stats.endpoints import playergamelogs
 from nba_api.live.nba.endpoints import boxscore
 from basketball_reference_scraper.players import get_stats
 from data_ingestion.db_utils import timeout
+import warnings
+warnings.filterwarnings('ignore')
 
 
 stat_tables = ['ADVANCED', 'PER_GAME', 'ADJ_SHOOTING', 'PBP', 'SHOOTING']
@@ -18,7 +20,7 @@ pbp_cols = ['SEASON', 'AGE', 'TEAM', 'LEAGUE', 'POS', 'G', 'PE_PG%', 'PE_SG%', '
 
 
 def join_player_stats(player_id: str, year: int) -> pd.DataFrame:
-    df = get_stats(player_id, stat_type=stat_tables[0]).dropna(axis=1)
+    df = get_stats(player_id, stat_type=stat_tables[0]).dropna(axis=1, how='all')
     for stat in stat_tables[1:]:
         new_df = timeout(10, get_stats, func_args=(player_id, stat)).drop(['MP'], axis=1)
         new_df = new_df.loc[:, ~new_df.columns.str.match('Unnamed')]
@@ -44,18 +46,18 @@ def join_player_stats(player_id: str, year: int) -> pd.DataFrame:
 
 
 def is_active(day: date, player: str):
-    curr_season = date.year if day.month < 7 else day.year + 1
+    curr_season = day.year if day.month < 7 else day.year + 1
     c = playergamelogs.PlayerGameLogs(
         season_nullable=f'{curr_season - 1}-{curr_season % 100}',
         date_from_nullable=day.strftime('%m/%d/%Y'),
         date_to_nullable=day.strftime('%m/%d/%Y')
     ).player_game_logs.get_data_frame()
-    return player in c['PLAYER_NAME'].values
+    return c
 
 #return dictionary of status on a given day
 #covid key value denoted as 'INACTIVE_HEALTH_AND_SAFETY_PROTOCOLS'
 def is_injured(day: date):
-    d = {}
+    df = pd.DataFrame(columns=['player', 'team', 'status'])
     curr_season = day.year if day.month < 7 else day.year + 1
     c = playergamelogs.PlayerGameLogs(
         season_nullable=f'{curr_season - 1}-{curr_season % 100}',
@@ -66,14 +68,21 @@ def is_injured(day: date):
     for game in games:
         box = boxscore.BoxScore(game)
         home = box.home_team_player_stats.get_dict()
+        home_team = f'{box.home_team.get_dict()["teamCity"]} {box.home_team.get_dict()["teamName"]}'
         away = box.away_team_player_stats.get_dict()
-        for p in away:
-            #print(p)
-            if p['status'] == 'ACTIVE':
-                d[p['firstName'] + " " + p['familyName']] = 'ACTIVE'
-            else:
-                if 'notPlayingReason' not in p:
-                    d[p['firstName'] + " " + p['familyName']] = None
-                else:
-                    d[p['firstName'] + " " + p['familyName']] = p['notPlayingReason']
-    return d
+        away_team = f'{box.away_team.get_dict()["teamCity"]} {box.away_team.get_dict()["teamName"]}'
+        for team, players in zip((home_team, away_team), (home, away)):
+            for p in players:
+                d = {'player': p['firstName'] + " " + p['familyName'],
+                     'team': team,
+                     'status': None}
+                if p['status'] == 'ACTIVE':
+                    d['status'] = 'ACTIVE'
+                elif 'notPlayingReason' in p:
+                    d['status'] = p['notPlayingReason']
+                df = df.append(d, ignore_index=True)
+    return df
+
+
+if __name__ == '__main__':
+    print(is_injured(date(2022,1,28)))
