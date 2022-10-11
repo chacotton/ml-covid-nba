@@ -3,7 +3,7 @@ import mlflow
 import pandas as pd
 from contextlib import redirect_stdout
 from datetime import date, timedelta
-from utils import read_table
+from modeling.utils import read_table
 import os
 
 
