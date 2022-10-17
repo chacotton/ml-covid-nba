@@ -1,10 +1,21 @@
 from abc import ABC, abstractmethod
 import mlflow
+import time
 import pandas as pd
 from contextlib import redirect_stdout
 from datetime import date, timedelta
 from modeling.utils import read_table
 import os
+
+
+def func_timer(func):
+    def method(*args, **kwargs):
+        start = time.time()
+        output = func(*args, **kwargs)
+        runtime = int(time.time() - start)
+        print(f'Total Time: {runtime // 3600:02}:{runtime % 3600 // 60:02}:{runtime % 60:02}')
+        return output
+    return method
 
 
 class NBAModel(ABC):

@@ -1,3 +1,5 @@
+import time
+
 import pandas as pd
 import numpy as np
 from datetime import date
@@ -84,5 +86,51 @@ def is_injured(day: date):
     return df
 
 
-if __name__ == '__main__':
-    print(is_injured(date(2022,1,28)))
+def split_status(status):
+    active = 1
+    covid = 0
+    if status is None:
+        active = 0
+    elif status != 'ACTIVE':
+        status = status.split('_', 1)
+        active = 0
+        if status[-1] == 'HEALTH_AND_SAFETY_PROTOCOLS':
+            covid = 1
+    return active, covid
+
+
+def id_check(name, ids):
+    name = name.replace('.', '')
+    if name.endswith(('Jr', 'III', 'IV')):
+        name = name.rsplit(' ', 1)[0]
+    if name in ids.index:
+        player_id = ids.loc[name, 'player_id']
+        if isinstance(player_id, str):
+            return player_id
+        else:
+            return player_id[-1]
+    else:
+        name = name.split(' ')
+        first, last = name[0], name[1]
+        potential_id = last.lower()[:5] + first.lower()[:2]
+        try:
+            return ids[ids.player_id.str.startswith(potential_id, na=False)].iloc[-1, 0]
+        except IndexError:
+            return None
+
+
+def pie_score(player, team):
+    def func(d):
+        return d['PTS'] + d['FGM'] + d['FTM'] - d['FGA'] - d['FTA'] + d['DREB'] + d['OREB']/2 + d['AST'] + d['STL'] + d['BLK']/2 - d['PF'] - d['TOV']
+    return func(player) / func(team)
+
+
+def func_timer(func):
+    def method(*args, **kwargs):
+        start = time.time()
+        output = func(*args, **kwargs)
+        runtime = int(time.time() - start)
+        print(f'Total Time: {runtime // 3600:02}:{runtime % 3600 // 60:02}:{runtime % 60:02}')
+        return output
+    return method
+
