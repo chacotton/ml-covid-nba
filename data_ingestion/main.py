@@ -3,15 +3,17 @@ Main Module that handles collection of data, transformations, and table writing
 """
 import datetime
 import argparse
+import pandas as pd
+import numpy as np
 from functools import partial
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import IntegrityError
-from data_ingestion.db_utils import read_table, write_db, get_engine
+from data_ingestion.db_utils import read_table, write_db, get_engine, timeout
 from basketball_reference_scraper.box_scores import get_box_scores
 from basketball_reference_scraper.teams import get_team_ratings
 from data_ingestion.constants import TEAMS
 from data_ingestion.injury_labeller.injuryScore import InjuryScore
-from data_ingestion.stat_utils import *
+from data_ingestion.stat_utils import func_timer, join_player_stats, is_active, is_injured, pie_score, split_status, id_check
 
 games_today = "SELECT GAME_DATE, HOME, AWAY FROM NBA.SCHEDULE WHERE GAME_DATE = :today"
 active_players = "select player_id from ACTIVE_ROSTER_DUMMY where GAME_DATE = :game_date and ACTIVE = 1"
@@ -24,35 +26,46 @@ player_to_id = "SELECT player_id, name from nba.PLAYER_IDS"
 
 @func_timer
 def update_player_stats(games: pd.DataFrame, connection: Connection) -> bool:
-    names = read_table("SELECT player_id, name FROM NBA.PLAYER_IDS", index_col="player_id")
+    """
+    Updates rows of player stats by year
+    :param games: pd.DataFrame of games
+    :param connection: sqlalchemy connection object
+    :return: boolean, whether any rows were updated
+    """
     updates = 0
-    for _, game in games.iterrows():
-        dfs = timeout(10, get_box_scores, attempts=3, func_args=(game.game_date, TEAMS[game.home], TEAMS[game.away]))
-        for team in [game.home, game.away]:
-            df = dfs[TEAMS[team]]
-            df.MP = df.MP.apply(lambda x: int(x.split(':')[0]) if len(x.split(':')) > 1 else 0)
-            player_ids = df[df.MP > 0].player_id.values
-            for player in player_ids:
-                year = game.game_date.year if game.game_date.month < 7 else game.game_date.year + 1
-                try:
-                    stats = join_player_stats(player, year).iloc[0, :]
-                except (TimeoutError, AttributeError):
-                    continue
-                stats = {k.upper().translate(char_replace): int(v) if isinstance(v, np.int64) else v for k, v in stats.items()}
-                try:
-                    stats['PLAYER'] = names.loc[player, 'name']
-                except (IndexError, KeyError):
-                    stats['PLAYER'] = df[df.player_id == player].PLAYER[0]
-                stats['PLAYER_ID'] = player
-                stats['PIE'] = np.clip(InjuryScore.pie_score(df, player), .01, 1).astype(float)
-                write_db('player_update.sql', connection=connection, **stats)
-                updates += 1
+    player_id_list = []
+    pies = []
+    if len(games) > 0:
+        year = games.loc[0, 'game_date'].year if games.loc[0, 'game_date'].month < 7 else games.loc[0, 'game_date'].year + 1
+        for _, game in games.iterrows():
+            dfs = timeout(10, get_box_scores, attempts=3, func_args=(game.game_date, TEAMS[game.home], TEAMS[game.away]))
+            for team in [game.home, game.away]:
+                df = dfs[TEAMS[team]]
+                df.MP = df.MP.apply(lambda x: int(x.split(':')[0]) if len(x.split(':')) > 1 else 0)
+                player_ids = df[df.MP > 0].player_id.values
+                player_id_list += [player for player in player_ids]
+                pies += [np.clip(InjuryScore.pie_score(df, player),.01,1) for player in player_ids]
+        all_stats = join_player_stats('', year)
+        all_stats = all_stats.loc[player_id_list, :]
+        for _, player in all_stats.iterrows():
+            stats = {k.upper().translate(char_replace): int(v) if isinstance(v, np.int64) else v for k, v in player.items()}
+            stats['PLAYER_ID'] = player.name
+            stats['PIE'] = pd.Series(pies, index=player_id_list)[player.name].astype(float)
+            stats['SEASON'] = year
+            write_db('player_update.sql', connection=connection, **stats)
+            updates += 1
     print(f'Player Rows Update: {updates}')
     return len(games) > 0
 
 
 @func_timer
 def update_team_stats(games: pd.DataFrame, connection: Connection) -> bool:
+    """
+    Updates Team Stat Rows by year
+    :param games: pd.DataFrame of games
+    :param connection: sqlalchemy connection object
+    :return: boolean whether any rows were updated
+    """
     if len(games) == 0:
         print('Team Rows Updated: 0')
         return False
@@ -69,7 +82,14 @@ def update_team_stats(games: pd.DataFrame, connection: Connection) -> bool:
     return True
 
 
-def update_info(game_date, id_checker, connection):
+def update_info(game_date: datetime.date, id_checker, connection: Connection):
+    """
+    Updates columns in active roster based on available labels
+    :param game_date: date object
+    :param id_checker: function
+    :param connection: sqlalchemy connection
+    :return: None
+    """
     season = game_date.year if game_date.month < 7 else game_date.year + 1
     players = read_table(active_players, game_date=game_date)
     if players.empty:
@@ -89,7 +109,14 @@ def update_info(game_date, id_checker, connection):
     print(f'Roster Rows Updated: {len(df[df.player_id.isin(players.player_id)])}')
 
 
-def add_new_players(game_date, id_checker, connection):
+def add_new_players(game_date: datetime.date, id_checker, connection: Connection):
+    """
+    Adds new players to active roster
+    :param game_date: dat object
+    :param id_checker: function
+    :param connection: sqlalchemy connection
+    :return: None
+    """
     actives = is_active(game_date, '')
     actives = actives[['PLAYER_NAME', 'TEAM_NAME', 'MIN']]
     actives.columns = ['player', 'team', 'mp']
@@ -127,12 +154,18 @@ def add_new_players(game_date, id_checker, connection):
 
 
 @func_timer
-def update_roster(day, connection: Connection = None) -> bool:
+def update_roster(day: datetime.date, connection: Connection = None) -> bool:
+    """
+    Updates active roster
+    :param day: date object
+    :param connection: sqlalchemy connection
+    :return: whether function completed successfully
+    """
     ids = read_table(player_to_id, index_col='name')
     id_checker = partial(id_check, ids=ids)
     update_info(day, id_checker, connection)
     add_new_players(day + datetime.timedelta(days=1), id_checker, connection)
-    return len(games) > 0
+    return True
 
 
 if __name__ == '__main__':

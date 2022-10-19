@@ -2,17 +2,17 @@ import argparse
 from sqlalchemy.engine import Connection
 import pandas as pd
 from datetime import date, timedelta, datetime
-from chance_of_victory import NBACoV
-from covid_recovery import NBACovid
+from modeling.chance_of_victory import NBACoV
+from modeling.covid_recovery import NBACovid
 from modeling import func_timer
-from utils import read_table, get_engine, write_db
+from modeling.utils import read_table, get_engine, write_db
 
 player_impact = 'select game_date, player_id, season, team, health, impact from nba.ACTIVE_ROSTER_DUMMY ' \
-                'where GAME_DATE <= :game_date and impact = -1 order by PLAYER_ID, GAME_DATE'
+                'where GAME_DATE <= :game_date order by PLAYER_ID, GAME_DATE'
 impact_update = 'update nba.active_roster_dummy set impact = :impact where GAME_DATE = :game_date and PLAYER_ID = :player_id'
 health_calc = "SELECT player_id from ACTIVE_ROSTER_DUMMY where GAME_DATE = :today and HEALTH = -1"
 health_update = "update active_roster_dummy set health = :health, PRED_HEALTH = :health where PLAYER_ID = :player_id and game_date = :game_date"
-win_prob = "SELECT GAME_DATE, HOME FROM NBA.SCHEDULE WHERE GAME_DATE = :today and HOME_WIN_PROB < 0"
+win_prob = "SELECT GAME_DATE, HOME FROM NBA.SCHEDULE WHERE GAME_DATE = :today"
 win_update = "update schedule set HOME_WIN_PROB = :home_win, AWAY_WIN_PROB = :away_win where GAME_DATE = :game_date and HOME = :team"
 
 
@@ -86,7 +86,7 @@ if __name__ == '__main__':
     if args.date is None:
         kwargs['game_date'] = date.today()
     elif args.date.endswith('.csv'):
-        dates = pd.read_csv('../test_game_dates.csv', parse_dates=['game_date'])
+        dates = pd.read_csv(args.date, parse_dates=['game_date'])
         kwargs['game_date'] = dates.loc[0, 'game_date']
         dates.drop([0], axis=0, inplace=True)
     else:
@@ -104,10 +104,12 @@ if __name__ == '__main__':
         kwargs['connection'] = conn
         if args.phealth:
             calculate_health(model=health_model, **kwargs)
+    with get_engine().begin() as conn:
+        kwargs['connection'] = conn
         if args.win:
             calculate_win_prob(model=win_model, **kwargs)
         if args.impact:
             calculate_impact(model=win_model, **kwargs)
     if args.date is not None and args.date.endswith('.csv'):
-        dates.to_csv('../test_game_dates.csv', index=False)
+        dates.to_csv(args.date, index=False)
 
