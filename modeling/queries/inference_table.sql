@@ -302,7 +302,7 @@ sum(active_roster.health * player_stats."%3PA") as "%3PA_HOME",
 sum(active_roster.health * player_stats."Att_Heave") as "Att_Heave_HOME",
 sum(active_roster.health * player_stats."#_Heave") as "#_Heave_HOME",
 schedule.winner as winner
-    from nba.ACTIVE_ROSTER, nba.schedule, nba.player_stats, nba.team_stats
+    from nba.ACTIVE_ROSTER_DUMMY active_roster, nba.schedule, nba.player_stats, nba.team_stats
 where active_roster.team = home and active_roster.game_date = schedule.game_date and active_roster.player_id = player_stats.player_id
  and active_roster.active = 1 and schedule.home = team_stats.team and team_stats.season = :season and PLAYER_STATS.SEASON = :season
  and SCHEDULE.GAME_DATE = :game_date
@@ -409,7 +409,7 @@ sum(active_roster.health * player_stats."#_DUNK") as "#_DUNK_AWAY",
 sum(active_roster.health * player_stats."%3PA") as "%3PA_AWAY",
 sum(active_roster.health * player_stats."Att_Heave") as "Att_Heave_AWAY",
 sum(active_roster.health * player_stats."#_Heave") as "#_Heave_AWAY"
-    from nba.ACTIVE_ROSTER, nba.schedule, nba.player_stats, nba.team_stats
+    from nba.ACTIVE_ROSTER_DUMMY active_roster, nba.schedule, nba.player_stats, nba.team_stats
 where active_roster.team = away and active_roster.game_date = schedule.game_date and active_roster.player_id = player_stats.player_id
     and active_roster.active = 1 and schedule.away = team_stats.team and team_stats.season = :season and PLAYER_STATS.SEASON = :season
     and SCHEDULE.GAME_DATE = :game_date

@@ -1,6 +1,7 @@
 haversine>=2.5
 lxml>=4.6
 oracledb==1.0.3
+html5lib
 sqlalchemy==1.4.41
 nba-api
 git+https://github.com/chacotton/basketball_reference_scraper.git

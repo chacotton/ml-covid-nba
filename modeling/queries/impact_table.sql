@@ -305,7 +305,7 @@ schedule.winner as winner
     from (select PLAYER_ID, GAME_DATE, TEAM, ACTIVE,
                  case when PLAYER_ID = :player_id and GAME_DATE = :game_date 
                      then :health 
-                     else HEALTH end as adj_health from NBA.ACTIVE_ROSTER) active_roster, nba.schedule, nba.player_stats, nba.team_stats
+                     else HEALTH end as adj_health from NBA.ACTIVE_ROSTER_DUMMY) active_roster, nba.schedule, nba.player_stats, nba.team_stats
 where active_roster.team = home and active_roster.game_date = schedule.game_date and active_roster.player_id = player_stats.player_id
  and schedule.home = team_stats.team and team_stats.season = :season and PLAYER_STATS.SEASON = :season
  and SCHEDULE.GAME_DATE = :game_date
@@ -415,7 +415,7 @@ sum(active_roster.adj_health * player_stats."#_Heave") as "#_Heave_AWAY"
     from (select PLAYER_ID, GAME_DATE, TEAM, ACTIVE,
                  case when PLAYER_ID = :player_id and GAME_DATE = :game_date
                      then :health
-                     else HEALTH end as adj_health from NBA.ACTIVE_ROSTER) active_roster, nba.schedule, nba.player_stats, nba.team_stats
+                     else HEALTH end as adj_health from NBA.ACTIVE_ROSTER_DUMMY) active_roster, nba.schedule, nba.player_stats, nba.team_stats
 where active_roster.team = away and active_roster.game_date = schedule.game_date and active_roster.player_id = player_stats.player_id
     and schedule.away = team_stats.team and team_stats.season = :season and PLAYER_STATS.SEASON = :season
     and SCHEDULE.GAME_DATE = :game_date
