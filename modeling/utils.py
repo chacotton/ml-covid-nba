@@ -3,7 +3,6 @@ from sqlalchemy.engine import Connection
 import pandas as pd
 from pathlib import Path
 from collections import namedtuple
-from multiprocessing import Process, Queue
 import oracledb
 import sys
 oracledb.version = "8.3.0"
@@ -70,21 +69,11 @@ def write_db(command: str, connection: Connection = None, **kwargs) -> bool:
     return True
 
 
-def wrapper(ret, func, args, kwargs):
-    ret.put(func(*args, **kwargs))
-
-
-def timeout(timeout_, func, attempts=1, func_args=(), func_kwargs={}):
-    queue = Queue(1)
-    for _ in range(attempts):
-        p1 = Process(target=wrapper, args=(queue, func, func_args, func_kwargs))
-        p1.start()
-        p1.join(timeout=timeout_)
-        p1.kill()
-        if p1.exitcode is None:
-            continue
-        elif p1.exitcode == 0:
-            return queue.get()
-    raise TimeoutError
-
-
+def resolve_path(path):
+    path = Path(path)
+    if path.exists():
+        return path
+    elif (path := Path('/mnt/ml-nba/models') / path).exists():
+        return path
+    else:
+        raise FileNotFoundError
