@@ -8,14 +8,16 @@ from modeling.utils import read_table
 import os
 
 
-def func_timer(func):
-    def method(*args, **kwargs):
-        start = time.time()
-        output = func(*args, **kwargs)
-        runtime = int(time.time() - start)
-        print(f'Total Time: {runtime // 3600:02}:{runtime % 3600 // 60:02}:{runtime % 60:02}')
-        return output
-    return method
+def func_timer(logger):
+    def decorator(func):
+        def method(*args, **kwargs):
+            start = time.time()
+            output = func(*args, **kwargs)
+            runtime = int(time.time() - start)
+            logger.info(f'Total Time: {runtime // 3600:02}:{runtime % 3600 // 60:02}:{runtime % 60:02}')
+            return output
+        return method
+    return decorator
 
 
 class NBAModel(ABC):
@@ -59,7 +61,7 @@ class NBAModel(ABC):
             start_date = end_date - timedelta(days=days_range)
         else:
             end_date = start_date + timedelta(days=days_range)
-        return read_table(cls.monitoring_query, start_date=start_date, end_date=end_date)
+        return read_table(cls.monitoring_query, start_date=start_date, end_date=end_date).iloc[0, 0]
 
     def _test_model(self):
         """Run model on dummy data to produce output"""

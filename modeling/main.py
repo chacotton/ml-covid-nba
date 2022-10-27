@@ -1,22 +1,38 @@
 import argparse
+import pathlib
+import logging
+import sys
 from sqlalchemy.engine import Connection
 import pandas as pd
-from datetime import date, timedelta, datetime
+from datetime import date, datetime
 from modeling.chance_of_victory import NBACoV
 from modeling.covid_recovery import NBACovid
 from modeling import func_timer
-from modeling.utils import read_table, get_engine, write_db
+from modeling.utils import read_table, get_engine, write_db, resolve_path
+
+base_path = pathlib.Path('/mnt/ml-nba/logs')
+logger = logging.getLogger("modeling")
+logger.handlers.clear()
+if base_path.exists():
+    time_format = datetime.datetime.now().strftime('%Y-%m-%d:%H:%M:%S')
+    file_handler = logging.FileHandler(base_path / pathlib.Path(f'{time_format}_modeling.log'))
+    file_handler.setFormatter(logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s'))
+    logger.addHandler(file_handler)
+stream_handler = logging.StreamHandler(sys.stdout)
+stream_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
+logger.addHandler(stream_handler)
+logger.setLevel(logging.INFO)
 
 player_impact = 'select game_date, player_id, season, team, health, impact from nba.ACTIVE_ROSTER_DUMMY ' \
                 'where GAME_DATE <= :game_date order by PLAYER_ID, GAME_DATE'
-impact_update = 'update nba.active_roster_dummy set impact = :impact where GAME_DATE = :game_date and PLAYER_ID = :player_id'
+impact_update = 'update nba.active_roster_dummy set impact = :impact, INACTIVE_IMPACT = :inactive_impact where GAME_DATE = :game_date and PLAYER_ID = :player_id'
 health_calc = "SELECT player_id from ACTIVE_ROSTER_DUMMY where GAME_DATE = :today and HEALTH = -1"
 health_update = "update active_roster_dummy set health = :health, PRED_HEALTH = :health where PLAYER_ID = :player_id and game_date = :game_date"
 win_prob = "SELECT GAME_DATE, HOME FROM NBA.SCHEDULE WHERE GAME_DATE = :today"
 win_update = "update schedule set HOME_WIN_PROB = :home_win, AWAY_WIN_PROB = :away_win where GAME_DATE = :game_date and HOME = :team"
 
 
-@func_timer
+@func_timer(logger)
 def calculate_impact(game_date: date, model: NBACoV, connection: Connection, season: int):
     rows = read_table(player_impact, game_date=game_date)
     rows = dict(tuple(rows.groupby('player_id')))
@@ -35,19 +51,32 @@ def calculate_impact(game_date: date, model: NBACoV, connection: Connection, sea
                             player_id=player_id, team=player_df.team.iloc[-1], health=float(new_health))
         if past_df.empty and new_df.empty:
             impact = 0
+            inactive_impact = 0
         else:
             base = model.predict(past_df.iloc[:, 3:])
             new = model.predict(new_df.iloc[:, 3:])
+            inactive = 0
+            if new_health != 0 and old_health != 0:
+                inactive_df = read_table('impact_table.sql', connection=connection, season=season, game_date=game_date,
+                                         player_id=player_id, team=player_df.team.iloc[-1], health=0)
+                inactive = model.predict(inactive_df.iloc[:, 3:])
             if player_df.team.iloc[-1] == new_df.loc[0, 'home']:
                 impact = (new - base).item()
+                inactive_impact = (inactive - new).item()
             else:
                 impact = (base - new).item()
-        write_db(impact_update, impact=float(impact), game_date=game_date, player_id=player_id, connection=connection)
+                inactive_impact = (new - inactive).item()
+            if new_health == 0:
+                inactive_impact = 0
+            elif old_health == 0:
+                inactive_impact = impact
+        write_db(impact_update, impact=float(impact), game_date=game_date, inactive_impact=float(inactive_impact),
+                 player_id=player_id, connection=connection)
         impact_generated += 1
-    print(f'Impacts Calculated: {impact_generated}')
+    logger.info(f'Impacts Calculated: {impact_generated}')
 
 
-@func_timer
+@func_timer(logger)
 def calculate_win_prob(game_date: date, model: NBACoV, connection: Connection, season: int):
     df = model.inference_table(game_date, season)
     games = read_table(win_prob, today=game_date, connection=connection)
@@ -58,10 +87,10 @@ def calculate_win_prob(game_date: date, model: NBACoV, connection: Connection, s
             if team in games.home.to_list():
                 write_db(win_update, home_win=yhat, away_win=(1 - yhat), game_date=game_date, team=team, connection=connection)
                 wins += 1
-    print(f'Games Predicted:   {wins}')
+    logger.info(f'Games Predicted:   {wins}')
 
 
-@func_timer
+@func_timer(logger)
 def calculate_health(game_date, model, connection: Connection, *args, **kwargs):
     players = read_table(health_calc, today=game_date)
     healths = 0
@@ -69,7 +98,7 @@ def calculate_health(game_date, model, connection: Connection, *args, **kwargs):
         health = model.predict(model.load_data(game_date, player))
         write_db(health_update, health=health, player_id=player, game_date=game_date, connection=connection)
         healths += 1
-    print(f'Healths Predicted: {healths}')
+    logger.info(f'Healths Predicted: {healths}')
 
 
 if __name__ == '__main__':
@@ -91,25 +120,57 @@ if __name__ == '__main__':
         dates.drop([0], axis=0, inplace=True)
     else:
         kwargs['game_date'] = datetime.strptime(args.date, '%Y-%m-%d')
+    logger.info(f'Executing with Date: {kwargs["game_date"].strftime("%Y-%m-%d")}')
 
     if args.win or args.impact:
-        assert args.win_model is not None, "A Win Probability Model must be specified"
-        win_model = NBACoV(args.win_model)
+        try:
+            assert args.win_model is not None
+        except AssertionError:
+            logger.error("A Win Probability Model must be specified")
+            raise
+        try:
+            win_model = NBACoV(resolve_path(args.win_model))
+            logger.info('Win Probability Model Loaded Successfully')
+        except FileNotFoundError:
+            logger.error(f"{args.win_model} does not exist nor exist in registry (/mnt/ml-nba/models)")
+            raise
     if args.phealth:
-        assert args.covid_model is not None, "A Health Model must be specified"
-        health_model = NBACovid(args.covid_model)
+        try:
+            assert args.covid_model is not None
+        except AssertionError:
+            logger.error("A Health Model must be specified")
+            raise
+        try:
+            health_model = NBACovid(resolve_path(args.covid_model))
+            logger.info('Health Model Loaded Successfully')
+        except FileNotFoundError:
+            logger.error(f"{args.covid_model} does not exist nor exist in registry (/mnt/ml-nba/models)")
+            raise
     kwargs['season'] = args.season
-
-    with get_engine().begin() as conn:
-        kwargs['connection'] = conn
-        if args.phealth:
-            calculate_health(model=health_model, **kwargs)
-    with get_engine().begin() as conn:
-        kwargs['connection'] = conn
-        if args.win:
-            calculate_win_prob(model=win_model, **kwargs)
-        if args.impact:
-            calculate_impact(model=win_model, **kwargs)
+    logger.info(f"Using Season: {kwargs['season']}")
+    try:
+        with get_engine().begin() as conn:
+            kwargs['connection'] = conn
+            if args.phealth:
+                calculate_health(model=health_model, **kwargs)
+            health_score = NBACovid.score_model(end_date=kwargs['game_date'])
+        with get_engine().begin() as conn:
+            kwargs['connection'] = conn
+            if args.win:
+                calculate_win_prob(model=win_model, **kwargs)
+            if args.impact:
+                calculate_impact(model=win_model, **kwargs)
+            win_score = NBACoV.score_model(end_date=kwargs['game_date'])
+    except ConnectionError:
+        logger.error('Database Connection Failed!')
+    try:
+        if health_score < .5:
+            logger.warning(f'Health Model has Degraded!\n R2 score over the past week: {health_score}')
+        if win_score < .65:
+            logger.warning(f'Win Model has Degraded!\n Accuracy over the past week: {win_score}')
+    except TypeError:
+        pass
     if args.date is not None and args.date.endswith('.csv'):
+        logger.info(f'Dates saved to {args.date}')
         dates.to_csv(args.date, index=False)
 
