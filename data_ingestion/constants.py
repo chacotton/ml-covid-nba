@@ -45,3 +45,5 @@ actives_update = "update active_roster_dummy set mp = :mp where PLAYER_ID = :pla
 char_replace = str.maketrans({'0': 'Z', '1': 'O', '2': 'T', '3': 'H', '%': 'P', '+': 'L', '-': 'M', '/': 'S',
                               '.': 'D', '#': 'N'})
 player_to_id = "SELECT player_id, name from nba.PLAYER_IDS"
+schedule_update = "UPDATE NBA.SCHEDULE SET HOME_PTS = :home_pts, AWAY_PTS = :away_pts, " \
+                  "POINT_DIFFERENCE = :diff, WINNER = :winner where GAME_DATE = :game_date and HOME = :home"

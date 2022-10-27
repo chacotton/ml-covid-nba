@@ -25,10 +25,10 @@ logger.setLevel(logging.INFO)
 
 player_impact = 'select game_date, player_id, season, team, health, impact from nba.ACTIVE_ROSTER_DUMMY ' \
                 'where GAME_DATE <= :game_date order by PLAYER_ID, GAME_DATE'
-impact_update = 'update nba.active_roster_dummy set impact = :impact where GAME_DATE = :game_date and PLAYER_ID = :player_id'
+impact_update = 'update nba.active_roster_dummy set impact = :impact, INACTIVE_IMPACT = :inactive_impact where GAME_DATE = :game_date and PLAYER_ID = :player_id'
 health_calc = "SELECT player_id from ACTIVE_ROSTER_DUMMY where GAME_DATE = :today and HEALTH = -1"
 health_update = "update active_roster_dummy set health = :health, PRED_HEALTH = :health where PLAYER_ID = :player_id and game_date = :game_date"
-win_prob = "SELECT GAME_DATE, HOME FROM NBA.SCHEDULE WHERE GAME_DATE = :today and HOME_WIN_PROB < 0"
+win_prob = "SELECT GAME_DATE, HOME FROM NBA.SCHEDULE WHERE GAME_DATE = :today"
 win_update = "update schedule set HOME_WIN_PROB = :home_win, AWAY_WIN_PROB = :away_win where GAME_DATE = :game_date and HOME = :team"
 
 
@@ -51,14 +51,27 @@ def calculate_impact(game_date: date, model: NBACoV, connection: Connection, sea
                             player_id=player_id, team=player_df.team.iloc[-1], health=float(new_health))
         if past_df.empty and new_df.empty:
             impact = 0
+            inactive_impact = 0
         else:
             base = model.predict(past_df.iloc[:, 3:])
             new = model.predict(new_df.iloc[:, 3:])
+            inactive = 0
+            if new_health != 0 and old_health != 0:
+                inactive_df = read_table('impact_table.sql', connection=connection, season=season, game_date=game_date,
+                                         player_id=player_id, team=player_df.team.iloc[-1], health=0)
+                inactive = model.predict(inactive_df.iloc[:, 3:])
             if player_df.team.iloc[-1] == new_df.loc[0, 'home']:
                 impact = (new - base).item()
+                inactive_impact = (inactive - new).item()
             else:
                 impact = (base - new).item()
-        write_db(impact_update, impact=float(impact), game_date=game_date, player_id=player_id, connection=connection)
+                inactive_impact = (new - inactive).item()
+            if new_health == 0:
+                inactive_impact = 0
+            elif old_health == 0:
+                inactive_impact = impact
+        write_db(impact_update, impact=float(impact), game_date=game_date, inactive_impact=float(inactive_impact),
+                 player_id=player_id, connection=connection)
         impact_generated += 1
     logger.info(f'Impacts Calculated: {impact_generated}')
 
@@ -150,10 +163,13 @@ if __name__ == '__main__':
             win_score = NBACoV.score_model(end_date=kwargs['game_date'])
     except ConnectionError:
         logger.error('Database Connection Failed!')
-    if health_score < .5:
-        logger.warning(f'Health Model has Degraded!\n R2 score over the past week: {health_score}')
-    if win_score < .65:
-        logger.warning(f'Win Model has Degraded!\n Accuracy over the past week: {win_score}')
+    try:
+        if health_score < .5:
+            logger.warning(f'Health Model has Degraded!\n R2 score over the past week: {health_score}')
+        if win_score < .65:
+            logger.warning(f'Win Model has Degraded!\n Accuracy over the past week: {win_score}')
+    except TypeError:
+        pass
     if args.date is not None and args.date.endswith('.csv'):
         logger.info(f'Dates saved to {args.date}')
         dates.to_csv(args.date, index=False)

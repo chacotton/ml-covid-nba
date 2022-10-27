@@ -14,9 +14,11 @@ from sqlalchemy.exc import IntegrityError
 from data_ingestion.db_utils import read_table, write_db, get_engine, timeout
 from basketball_reference_scraper.box_scores import get_box_scores
 from basketball_reference_scraper.teams import get_team_ratings
+from basketball_reference_scraper.seasons import get_schedule
 from data_ingestion.constants import *
 from data_ingestion.injury_labeller.injuryScore import InjuryScore
 from data_ingestion.stat_utils import func_timer, join_player_stats, is_active, is_injured, pie_score, split_status, id_check
+from data_ingestion.bball_ref import InjuryReport
 
 base_path = pathlib.Path('/mnt/ml-nba/logs')
 logger = logging.getLogger("data_ingestion")
@@ -129,30 +131,42 @@ def add_new_players(game_date: datetime.date, id_checker, connection: Connection
     :param connection: sqlalchemy connection
     :return: None
     """
-    actives = is_active(game_date, '')
-    actives = actives[['PLAYER_NAME', 'TEAM_NAME', 'MIN']]
-    actives.columns = ['player', 'team', 'mp']
-    actives['player_id'] = actives.player.apply(id_checker)
-    actives['active'], actives['covid'], actives['health'] = [1, 0, -1]
-    inactives = is_injured(game_date)
-    if not inactives.empty:
-        inactives[['active', 'covid']] = inactives.status.apply(split_status).apply(pd.Series)
-        inactives = inactives[inactives.active == 0].drop(['status'], axis=1)
-        inactives['health'] = 0
-        inactives['player_id'] = inactives.player.apply(id_checker)
+    if game_date.date() == datetime.date.today():
+        games = read_table(games_today, today=game_date)
+        live_injury_report = InjuryReport()
+        actives = [live_injury_report.team_actives(team) for team in games.home.to_list() + games.away.to_list()]
+        actives = pd.concat(actives, ignore_index=True)
+        inactives = live_injury_report.injury_mapping[live_injury_report.injury_mapping.Status == 'Out']
+        inactives['mp'], inactives['health'], inactives['active'] = [0, 0, 0]
+        inactives['covid'] = inactives.Injury.apply(lambda x: int('health and safety' in x.lower() or x.lower().startswith('covid')))
+        inactives = inactives[['Player', 'Team', 'mp', 'health', 'active', 'covid']].reset_index()
+        inactives.rename({'Player': 'player', 'Team': 'team'}, axis=1, inplace=True)
         actives = pd.concat((actives, inactives), ignore_index=True)
+    else:
+        actives = is_active(game_date, '')
+        actives = actives[['PLAYER_NAME', 'TEAM_NAME', 'MIN']]
+        actives.columns = ['player', 'team', 'mp']
+        actives['player_id'] = actives.player.apply(id_checker)
+        actives['active'], actives['covid'], actives['health'] = [1, 0, -1]
+        inactives = is_injured(game_date)
+        if not inactives.empty:
+            inactives[['active', 'covid']] = inactives.status.apply(split_status).apply(pd.Series)
+            inactives = inactives[inactives.active == 0].drop(['status'], axis=1)
+            inactives['health'] = 0
+            inactives['player_id'] = inactives.player.apply(id_checker)
+            actives = pd.concat((actives, inactives), ignore_index=True)
+        actives.team = actives.team.apply(lambda x: {'LA Clippers': 'Los Angeles Clippers'}.get(x, x))
     if actives.empty:
         logger.info('No New Roster Rows Added')
         return
-    actives.team = actives.team.apply(lambda x: {'LA Clippers': 'Los Angeles Clippers'}.get(x, x))
     season = game_date.year if game_date.month < 7 else game_date.year + 1
     distances = {team: read_table('dist.sql',
                                   team=team,
                                   target_date=game_date,
                                   date_range=game_date - datetime.timedelta(days=5),
                                   season=season,
-                                  index_col='game_date').loc[game_date, 'dist'] for team in actives.team.unique()}
-    actives['distance'] = actives.apply(lambda row: distances[row.team] if row.active else 0, axis=1)
+                                  index_col='game_date') for team in actives.team.unique()}
+    actives['distance'] = actives.apply(lambda row: distances[row.team].loc[game_date, 'dist'] if row.active else 0, axis=1)
     actives['season'], actives['game_date'] = [season, game_date]
     actives = actives[actives.player_id.notna()].fillna(0)
     success, failed = 0, 0
@@ -183,6 +197,20 @@ def update_roster(day: datetime.date, connection: Connection = None) -> bool:
     return True
 
 
+@func_timer(logger)
+def update_schedule(day: datetime.date, connection: Connection = None) -> bool:
+    season = day.year if day.month < 7 else day.year + 1
+    scores = get_schedule(season)
+    scores = scores[scores.DATE == day]
+    for i, row in scores.iterrows():
+        out = {'home': row.HOME, 'game_date': day, 'home_pts': int(row.HOME_PTS), 'away_pts': int(row.VISITOR_PTS),
+               'diff': int(abs(row.HOME_PTS - row.VISITOR_PTS)),
+               'winner': row.HOME if row.HOME_PTS > row.VISITOR_PTS else row.VISITOR}
+        write_db(schedule_update, **out, connection=connection)
+    logger.info(f"Scores Successfully Updated: {len(scores)}")
+    return True
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("Database Updater")
     parser.add_argument('-p', '--player', action='store_true')
@@ -201,6 +229,7 @@ if __name__ == '__main__':
     games = read_table(games_today, today=today)
     try:
         with get_engine().begin() as conn:
+            update_schedule(today)
             if args.player:
                 update_player_stats(games, conn)
             if args.team:

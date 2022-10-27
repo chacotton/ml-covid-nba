@@ -61,7 +61,7 @@ class NBAModel(ABC):
             start_date = end_date - timedelta(days=days_range)
         else:
             end_date = start_date + timedelta(days=days_range)
-        return read_table(cls.monitoring_query, start_date=start_date, end_date=end_date)
+        return read_table(cls.monitoring_query, start_date=start_date, end_date=end_date).iloc[0, 0]
 
     def _test_model(self):
         """Run model on dummy data to produce output"""
