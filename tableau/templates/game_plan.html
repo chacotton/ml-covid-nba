@@ -1,0 +1,83 @@
+<!-- index.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>NBA Covid</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename= 'style.css') }}">
+    <script>
+        var subjectObject = {{game_opts|tojson}}
+        window.onload = function() {
+      var seasonSel = document.getElementById("season");
+      var dateSel = document.getElementById("date");
+      var teamSel = document.getElementById("team");
+      for (var x in subjectObject) {
+        seasonSel.options[seasonSel.options.length] = new Option(x, x);
+      }
+      seasonSel.onchange = function() {
+     //empty Chapters- and Topics- dropdowns
+     teamSel.length = 1;
+     dateSel.length = 1;
+        //display correct values
+        for (var y in subjectObject[this.value]) {
+          dateSel.options[dateSel.options.length] = new Option(y, y);
+        }
+      }
+      dateSel.onchange = function() {
+    //empty Chapters dropdown
+     teamSel.length = 1;
+        //display correct values
+        var z = subjectObject[seasonSel.value][this.value];
+        for (var i = 0; i < z.length; i++) {
+          teamSel.options[teamSel.options.length] = new Option(z[i], z[i]);
+        }
+      }
+}
+</script>
+</head>
+<body>
+<div class="topnav">
+    <a href="/home">Home</a>
+    <a href="/insights">Insights</a>
+    <a href="/game_plan">Game Planning</a>
+</div>
+<form name="form1" id="form1" style="padding-bottom: 10px; padding-top: 10px" method="post" action="{{url_for('game_plan')}}"> <div class="bottomnav">
+  Season: <select name="season" id="season">
+    <option value="" selected="selected">Select Season</option>
+  </select>
+  </div>
+    <div class="bottomnav">
+  Date: <select name="date" id="date">
+    <option value="" selected="selected">Please select season first</option>
+  </select>
+    </div>
+    <div class="bottomnav">
+  Team: <select name="team" id="team">
+    <option value="" selected="selected">Please select team first</option>
+  </select>
+    </div>
+    <div class="bottomnav">
+  <input type="submit" value="Submit">
+    </div>
+</form>
+  <div class="inline_topper">{{ away }} <br> {{ away_score }}</div>
+  <div id='chart' class='inline_topper' ></div>
+  <div class="inline_topper">{{ home }} <br> {{home_score }}</div>
+  <p style="text-align: center">Activate or deactivate players to see the change in win probability</p>
+<div style="text-align: center"><input type="button" value="Calculate" class="calc"></div>
+  <div class="inline_bottom">
+    {% block content %}
+    {{away_roster | safe}}
+    {% endblock %}
+    {% block other_content %}
+    {{home_roster | safe}}
+    {% endblock %}
+  </div>
+</body>
+<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
+<script type='text/javascript'>
+  var graphs = {{graphJSON | safe}};
+  Plotly.plot('chart',graphs,{});
+</script>
+</html>
