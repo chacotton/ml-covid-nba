@@ -6,3 +6,4 @@ xgboost==1.6.2
 oracledb
 sqlalchemy
 torch
+paramiko
