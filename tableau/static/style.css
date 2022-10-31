@@ -1,0 +1,51 @@
+.inline_topper {
+            width: 33%;
+            max-height: 300px;
+            text-align: center;
+            font-size: x-large;
+            display: inline-block;
+            vertical-align:top;
+            }
+.dataframe {
+    height: 200px;
+    display: inline-block;
+}
+.inline_bottom {
+   width: 100%;
+    display: flex;
+    justify-content: space-evenly;
+}
+.topnav {
+    background-color: lightgray;
+    height: 40px;
+    line-height: 40px;
+}
+.topnav a {
+    color: black;
+    text-align: center;
+    vertical-align: middle;
+    padding: 1px 16px;
+    font-size: x-large;
+    text-decoration: none;
+}
+.bottomnav {
+    display: inline-block;
+}
+.bottomnav a {
+    color: black;
+    text-align: center;
+    vertical-align: center;
+    padding: 14px 16px;
+    font-size: 20px;
+}
+
+table td:nth-child(2) {
+    text-align: center;
+}
+
+.calc {
+    text-align: center;
+    font-size: 18px;
+    padding: 5px;
+
+}

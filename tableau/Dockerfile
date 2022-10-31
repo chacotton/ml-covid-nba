@@ -1,4 +1,6 @@
 FROM python:3.8-slim-buster
 WORKDIR tableau
 COPY . .
-CMD python -m http.server
+RUN pip install -r requirements.txt
+RUN pip install gunicorn
+CMD gunicorn app:app
