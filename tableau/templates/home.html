@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>NBA Covid</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename= 'style.css') }}">
+</head>
+<body class="home_body">
+<div class="topnav">
+    <a href="/home">Home</a>
+    <a href="/insights">Insights</a>
+    <a href="/game_plan">Game Planning</a>
+</div>
+<div class="site-content_section">
+    <div class="leftbar" style="text-align: center">
+        <img src="{{ url_for('static', filename= 'images/nbaxoci.png') }}" style="margin-top: 10px">
+        <p style="color:white">Built on Oracle Cloud</p>
+        <p style="padding-top: 60px;color:white">Methodology</p>
+        <p style="color:white;margin-left: 5px; margin-right: 5px">By leveraging state of the art machine learning, we were able to successfully analyze and predict
+        a player's healthiness on a given day. Healthiness is relative scale of how likely a player is to peform
+        at their standard level. This healthiness score tells us what level of output can be expected for any given
+        game and allows us to maximize our predictive ability in games.</p>
+        <p style="color:white;margin-right: 5px; margin-left: 5px">By adding in this healthiness score we were able to effectively predict the outcomes of games and from
+        there we analyzed the impact of each player's health. Our primary goal was to measure how impactful a
+        player's health was on a given game. To calculate impact we divided players into two categories. Active and Inactive
+        An active players impact was measured as how their team's win probability changed based on how their individual health changed
+        from the previous game. Inactive players had their health measured by considering how they would contribute if they
+        were available. This impact measure is not meant to show how important a player is (although they tend to be correlated, rather it shows how their health status
+        is impacting their team.</p>
+    </div>
+    <div class="main" style="text-align: center">
+        <img src="{{ url_for('static', filename= 'images/small_logo.png') }}">
+        <p>The NBA, like many corporations and businesses, has been largely affected by COVID-19. However,
+        unlike many standard businesses that can track the effect of the pandemic on a spreadsheet or statistic, we
+        have no way to tangibly mark the effects of COVID-19 across the NBA.</p>
+        <img src="{{ url_for('static', filename= 'images/player_covid.png') }}">
+        <div id='chart'></div>
+    </div>
+    <div class="rightbar" style="text-align: center">
+        <p style="color:white">Yesterday's Scores</p>
+        {% block content %}
+        {{yday_games | safe}}
+        {% endblock %}
+    </div>
+</div>
+<div class="footer">Team Members: Chhun Hong, Ethan Hardy, Chase Cotton, Suraj Pai, Koushik Chennakesavan, Ethan Blumenfeld</div>
+</body>
+<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
+<script type='text/javascript'>
+  var graphs = {{graphJSON | safe}};
+  Plotly.plot('chart',graphs,{});
+</script>
+</html>

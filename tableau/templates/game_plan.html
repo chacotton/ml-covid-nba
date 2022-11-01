@@ -36,13 +36,16 @@
 }
 </script>
 </head>
-<body>
+<body class="home_body">
 <div class="topnav">
     <a href="/home">Home</a>
     <a href="/insights">Insights</a>
     <a href="/game_plan">Game Planning</a>
 </div>
-<form name="form1" id="form1" style="padding-bottom: 10px; padding-top: 10px" method="post" action="{{url_for('game_plan')}}"> <div class="bottomnav">
+<div class="site-content_section">
+<form name="form1" id="form1" style="padding-bottom: 10px; padding-top: 10px; padding-left: 5px" method="post" action="{{url_for('game_plan')}}">
+  <input type="hidden" name="key" value="select">
+  <div class="bottomnav">
   Season: <select name="season" id="season">
     <option value="" selected="selected">Select Season</option>
   </select>
@@ -61,11 +64,14 @@
   <input type="submit" value="Submit">
     </div>
 </form>
-  <div class="inline_topper">{{ away }} <br> {{ away_score }}</div>
+  <div class="inline_topper"><img src="{{ url_for('static', filename='/images/' + away_logo + '.png') }}" class="team_logos"><br>{{ away }} <br> {{ away_score }}</div>
   <div id='chart' class='inline_topper' ></div>
-  <div class="inline_topper">{{ home }} <br> {{home_score }}</div>
+  <div class="inline_topper"><img src="{{ url_for('static', filename='/images/' + home_logo + '.png') }}" class="team_logos"><br> {{ home }} <br> {{home_score }}</div>
   <p style="text-align: center">Activate or deactivate players to see the change in win probability</p>
-<div style="text-align: center"><input type="button" value="Calculate" class="calc"></div>
+
+  <form name="'roster" method="post" action="{{ url_for('game_plan') }}">
+    <input type="hidden" name="key" value="calc">
+    <div style="text-align: center"><input type="submit" value="Calculate" class="calc"></div>
   <div class="inline_bottom">
     {% block content %}
     {{away_roster | safe}}
@@ -73,6 +79,8 @@
     {% block other_content %}
     {{home_roster | safe}}
     {% endblock %}
+  </div>
+    </form>
   </div>
 </body>
 <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
