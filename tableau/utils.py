@@ -5,6 +5,7 @@ from pathlib import Path
 from collections import namedtuple
 import oracledb
 import sys
+from xgboost import XGBClassifier
 oracledb.version = "8.3.0"
 sys.modules["cx_Oracle"] = oracledb
 import cx_Oracle
@@ -67,3 +68,23 @@ def resolve_path(path):
         return path
     else:
         raise FileNotFoundError
+
+class WinProbWrapper:
+
+    SCALAR = ""
+    def __init__(self, file):
+        self.model = XGBClassifier()
+        self.model.load_model(resolve_path(file))
+
+    def predict(self, home_actives, away_actives, game_date, season, home, away):
+        ha = {f'h{i + 1}': home_actives[i] if i < len(home_actives) else None for i in range(15)}
+        aa = {f'a{i + 1}': away_actives[i] if i < len(away_actives) else None for i in range(15)}
+        if all(v is None for v in ha.values()) and all(v is None for v in aa.values()):
+            return [.5, .5]
+        elif all(v is None for v in ha.values()):
+            return [0, 1]
+        elif all(v is None for v in aa.values()):
+            return [1, 0]
+        else:
+            df = read_table('win_prob.sql', season=season, game_date=game_date, team=home, **ha, **aa)
+            return self.model.predict_proba(df.iloc[:, 3:])[0][::-1]

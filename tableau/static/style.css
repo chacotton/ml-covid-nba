@@ -17,8 +17,18 @@
 }
 .topnav {
     background-color: lightgray;
-    height: 40px;
+    height: 100%;
+    width: 100%;
+    grid-area: top_nav;
     line-height: 40px;
+}
+.home_body{
+    margin: 0;
+    padding: 0;
+    display: grid;
+    height: 100%;
+    grid-template-areas: "top_nav" "content_section" "footer_section";
+    grid-template-rows: 40px 100% 20px;
 }
 .topnav a {
     color: black;
@@ -48,4 +58,37 @@ table td:nth-child(2) {
     font-size: 18px;
     padding: 5px;
 
+}
+.leftbar {
+    float: left;
+    width: 20%;
+    height: 100%;
+    background-color: navy;
+}
+.rightbar {
+    float: left;
+    width: 20%;
+    height: 100%;
+    background-color: navy;
+}
+.main {
+    float: left;
+    width: 60%;
+    height: 100%;
+    background-color: #efefef;
+}
+.site-content_section {
+    grid-area: content_section;
+}
+.footer{
+    grid-area: footer_section;
+    background-color: #efefef;
+}
+.box_score {
+    margin-left: auto;
+    margin-right: auto;
+    color: white;
+}
+.team_logos {
+    max-width: 25%;
 }
