@@ -12,14 +12,15 @@ import pickle
 from constants import team_colors, layouts
 from collections import namedtuple
 from sqlalchemy.orm import scoped_session
+import greenlet
 
 
 
 app = Flask(__name__)
-app.session = scoped_session(SessionLocal, scopefunc=_app_ctx_stack.__ident_func__)
+app.session = scoped_session(SessionLocal, scopefunc=greenlet.getcurrent)
 with open('game_opts.pkl', 'rb') as f:
     app.game_opts = pickle.load(f)
-app.model = WinProbWrapper('/Users/chasecotton/ml-covid-nba/mlflow_utils/classifier_v2/artifacts/xgb_classifier.json', app.session)
+app.model = WinProbWrapper('classifier_v2/artifacts/xgb_classifier.json', app.session)
 
 HOME = "select home, away, HOME_PTS, AWAY_PTS, HOME_WIN_PROB, AWAY_WIN_PROB from SCHEDULE where GAME_DATE = :game_date"
 Game = namedtuple("Game", "season game_date team")
