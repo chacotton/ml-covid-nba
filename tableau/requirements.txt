@@ -4,3 +4,4 @@ plotly
 sqlalchemy
 xgboost
 oracledb
+scikit-learn
