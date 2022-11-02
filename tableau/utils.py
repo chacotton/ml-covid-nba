@@ -1,5 +1,7 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Connection
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 import pandas as pd
 from pathlib import Path
 from collections import namedtuple
@@ -32,6 +34,7 @@ def get_engine():
         }
     )
 
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=get_engine())
 
 def reformat_query(func):
     def method(command, **kwargs):
@@ -44,7 +47,7 @@ def reformat_query(func):
 
 
 @reformat_query
-def read_table(command: str, connection: Connection = None, index_col: str = None, **kwargs) -> pd.DataFrame:
+def read_table(command: str, connection, index_col: str = None, **kwargs) -> pd.DataFrame:
     """
     Method to return dataset from database
     :param command: sql statement to execute
@@ -52,11 +55,9 @@ def read_table(command: str, connection: Connection = None, index_col: str = Non
     :param index_col: name of primary key if desired as index
     :return: pandas DataFrame
     """
-    if connection is None:
-        with get_engine().connect() as conn:
-            df = pd.read_sql(command, conn, params=kwargs, index_col=index_col)
-    else:
-        df = pd.read_sql(command, connection, params=kwargs, index_col=index_col)
+    df = pd.DataFrame(connection.execute(command, kwargs).fetchall())
+    if index_col is not None:
+        df.index = df.pop(index_col)
     return df
 
 
@@ -69,14 +70,14 @@ def resolve_path(path):
     else:
         raise FileNotFoundError
 
-class WinProbWrapper:
 
-    SCALAR = ""
-    def __init__(self, file):
+class WinProbWrapper:
+    def __init__(self, file, session):
         self.model = XGBClassifier()
         self.model.load_model(resolve_path(file))
+        self.session = session
 
-    def predict(self, home_actives, away_actives, game_date, season, home, away):
+    def predict(self, home_actives, away_actives, game_date, season, home):
         ha = {f'h{i + 1}': home_actives[i] if i < len(home_actives) else None for i in range(15)}
         aa = {f'a{i + 1}': away_actives[i] if i < len(away_actives) else None for i in range(15)}
         if all(v is None for v in ha.values()) and all(v is None for v in aa.values()):
@@ -86,5 +87,6 @@ class WinProbWrapper:
         elif all(v is None for v in aa.values()):
             return [1, 0]
         else:
-            df = read_table('win_prob.sql', season=season, game_date=game_date, team=home, **ha, **aa)
-            return self.model.predict_proba(df.iloc[:, 3:])[0][::-1]
+            df = read_table('win_prob.sql', season=season, game_date=game_date,
+                            team=home, **ha, **aa, connection=self.session)
+            return self.model.predict_proba(df.iloc[:, 3:].values)[0][::-1]

@@ -1,22 +1,25 @@
 from datetime import date, timedelta, datetime
 from itertools import product
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, _app_ctx_stack
 import pandas as pd
 import plotly
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import json
-from utils import read_table, get_engine, WinProbWrapper
+from utils import read_table, WinProbWrapper, SessionLocal
 import pickle
 from constants import team_colors, layouts
 from collections import namedtuple
+from sqlalchemy.orm import scoped_session
+
 
 
 app = Flask(__name__)
+app.session = scoped_session(SessionLocal, scopefunc=_app_ctx_stack.__ident_func__)
 with open('game_opts.pkl', 'rb') as f:
     app.game_opts = pickle.load(f)
-app.model = WinProbWrapper('/Users/chasecotton/ml-covid-nba/mlflow_utils/classifier_v2/artifacts/xgb_classifier.json')
+app.model = WinProbWrapper('/Users/chasecotton/ml-covid-nba/mlflow_utils/classifier_v2/artifacts/xgb_classifier.json', app.session)
 
 HOME = "select home, away, HOME_PTS, AWAY_PTS, HOME_WIN_PROB, AWAY_WIN_PROB from SCHEDULE where GAME_DATE = :game_date"
 Game = namedtuple("Game", "season game_date team")
@@ -47,9 +50,8 @@ def index():
 @app.route('/home')
 def home():
     today = date.today() if datetime.now().hour > 10 else date.today() - timedelta(days=1)
-    with get_engine().connect() as conn:
-        yday = read_table(HOME, game_date=today - timedelta(days=1), connection=conn)
-        tday = read_table(HOME, game_date=today, connection=conn)
+    yday = read_table(HOME, game_date=today - timedelta(days=1), connection=app.session)
+    tday = read_table(HOME, game_date=today, connection=app.session)
     yday_tables = ''
     for i, row in yday.iterrows():
         df = pd.DataFrame([[row.away, row.away_pts, f'{row.away_win_prob*100:.1f}%'],
@@ -70,7 +72,7 @@ def home():
                              text=[row.home, row.away],
                              textposition='outside', marker={'colors': s[[row.home, row.away]]}),
                       row=row_l, col=col)
-    fig.update_layout(showlegend=False, title_text='Games Today', title_x=.5, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+    fig.update_layout(showlegend=False, title_text='Games Today', title_x=.5, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=650)
     graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     return render_template("home.html", yday_games=yday_tables, graphJSON=graphJSON)
 
@@ -106,22 +108,22 @@ def game_plan():
     if month > 7:
         season -= 1
     game_date = date(season, month, day)
-    with get_engine().connect() as conn:
-        game = read_table("select home, away, home_pts, away_pts, HOME_WIN_PROB, AWAY_WIN_PROB from NBA.SCHEDULE where GAME_DATE = :game_date and (HOME = :team or AWAY = :team)",
-                          game_date=game_date, team=team, connection=conn)
-        home = read_table(
+    #with get_engine().connect() as conn:
+    game = read_table("select home, away, home_pts, away_pts, HOME_WIN_PROB, AWAY_WIN_PROB from NBA.SCHEDULE where GAME_DATE = :game_date and (HOME = :team or AWAY = :team)",
+                          game_date=game_date, team=team, connection=app.session)
+    home = read_table(
             "select player, active, PLAYER_ID from nba.ACTIVE_ROSTER_DUMMY where GAME_DATE = :game_date and TEAM = :team",
-            game_date=game_date, team=game.loc[0, 'home'], connection=conn)
-        away = read_table(
+            game_date=game_date, team=game.loc[0, 'home'], connection=app.session)
+    away = read_table(
             "select player, active, PLAYER_ID from nba.ACTIVE_ROSTER_DUMMY where GAME_DATE = :game_date and TEAM = :team",
-            game_date=game_date, team=game.loc[0, 'away'], connection=conn)
+            game_date=game_date, team=game.loc[0, 'away'], connection=app.session)
     if new_run:
         home_actives = home[home.active == 1].player_id.tolist()
         away_actives = away[away.active == 1].player_id.tolist()
     else:
         home_actives = [x for x in curr_players[0] if x != 0]
         away_actives = [x for x in curr_players[1] if x != 0]
-    pred = app.model.predict(home_actives, away_actives, season=season, game_date=game_date, home=game.loc[0, 'home'], away=game.loc[0, 'away'])
+    pred = app.model.predict(home_actives, away_actives, season=season, game_date=game_date, home=game.loc[0, 'home'])
     fig = px.pie(names=game.loc[0, 'home':'away'],
                  values=pred,
                  color=game.loc[0, 'home':'away'],
