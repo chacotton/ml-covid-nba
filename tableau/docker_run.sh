@@ -1,1 +1,1 @@
-sudo docker run -d -p 8000:8000 webserver:v1
+sudo docker run -d -p 1521:1521 -p 8000:8000 --mount type=volume,dst=/mnt/ml-nba,volume-opt=type=nfs,volume-opt=device=:/ml-nba,volume-opt=o=addr=10.0.0.161 webserver:v1
