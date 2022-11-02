@@ -14,7 +14,7 @@ base_path = pathlib.Path('/mnt/ml-nba/logs')
 logger = logging.getLogger("modeling")
 logger.handlers.clear()
 if base_path.exists():
-    time_format = datetime.datetime.now().strftime('%Y-%m-%d:%H:%M:%S')
+    time_format = datetime.now().strftime('%Y-%m-%d:%H:%M:%S')
     file_handler = logging.FileHandler(base_path / pathlib.Path(f'{time_format}_modeling.log'))
     file_handler.setFormatter(logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s'))
     logger.addHandler(file_handler)
