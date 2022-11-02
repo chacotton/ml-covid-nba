@@ -15,18 +15,18 @@
     <div class="leftbar" style="text-align: center">
         <img src="{{ url_for('static', filename= 'images/nbaxoci.png') }}" style="margin-top: 10px">
         <p style="color:white">Built on Oracle Cloud</p>
-        <p style="padding-top: 60px;color:white">Methodology</p>
-        <p style="color:white;margin-left: 5px; margin-right: 5px">By leveraging state of the art machine learning, we were able to successfully analyze and predict
-        a player's healthiness on a given day. Healthiness is relative scale of how likely a player is to peform
-        at their standard level. This healthiness score tells us what level of output can be expected for any given
-        game and allows us to maximize our predictive ability in games.</p>
-        <p style="color:white;margin-right: 5px; margin-left: 5px">By adding in this healthiness score we were able to effectively predict the outcomes of games and from
-        there we analyzed the impact of each player's health. Our primary goal was to measure how impactful a
-        player's health was on a given game. To calculate impact we divided players into two categories. Active and Inactive
-        An active players impact was measured as how their team's win probability changed based on how their individual health changed
-        from the previous game. Inactive players had their health measured by considering how they would contribute if they
-        were available. This impact measure is not meant to show how important a player is (although they tend to be correlated, rather it shows how their health status
-        is impacting their team.</p>
+        <h1 style="padding-top: 60px;color:white">Methodology</h1>
+        <p style="color:white;margin-left: 10px; margin-right: 10px">We leveraged state-of-the-art machine learning
+        to accurately predict NBA games using our proprietary Health Score. This Health Score allows for maximization of
+        correct win probabilities and generating player impact.</p>
+        <h4 style="padding-top: 10px;color: white">Insights</h4>
+        <p style="color:white;margin-right: 10px; margin-left: 10px">Using player impact we show the contribution of individual players
+        to their team's overall performance. These contributions are broken down into single games, a team's season, and league-wide.
+        On the league level we focus directly on Covid.<br><br><em>Impact is a team's change in win probability based on how healthy a player was
+        yesterday vs today.</em> </p>
+        <h4 style="padding-top: 10px;color: white">Game Planning</h4>
+        <p style="color: white;margin-right: 10px;margin-left: 10px">We allows users to see how a team's chance of to win
+        changes based on which players are active for that game.</p>
     </div>
     <div class="main" style="text-align: center">
         <img src="{{ url_for('static', filename= 'images/small_logo.png') }}">
