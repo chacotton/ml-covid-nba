@@ -7,7 +7,7 @@
 </head>
 <body class="home_body">
 <div class="topnav">
-    <a href="/home">Home</a>
+    <a href="/home" class="current">Home</a>
     <a href="/insights">Insights</a>
     <a href="/game_plan">Game Planning</a>
 </div>
@@ -33,11 +33,11 @@
         <p>The NBA, like many corporations and businesses, has been largely affected by COVID-19. However,
         unlike many standard businesses that can track the effect of the pandemic on a spreadsheet or statistic, we
         have no way to tangibly mark the effects of COVID-19 across the NBA.</p>
-        <img src="{{ url_for('static', filename= 'images/player_covid.png') }}">
+        <div id='graph'></div>
         <div id='chart'></div>
     </div>
     <div class="rightbar" style="text-align: center">
-        <p style="color:white">Yesterday's Scores</p>
+        <p style="color:white">{{ scores_header }}</p>
         {% block content %}
         {{yday_games | safe}}
         {% endblock %}
@@ -49,5 +49,9 @@
 <script type='text/javascript'>
   var graphs = {{graphJSON | safe}};
   Plotly.plot('chart',graphs,{});
+</script>
+<script type="text/javascript">
+    var graphs = {{mainGraph | safe}};
+    Plotly.plot('graph', graphs, {})
 </script>
 </html>

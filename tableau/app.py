@@ -1,3 +1,4 @@
+import os
 from datetime import date, timedelta, datetime
 from itertools import product
 from flask import Flask, render_template, request, redirect, url_for, _app_ctx_stack
@@ -13,31 +14,45 @@ from constants import team_colors, layouts
 from collections import namedtuple
 from sqlalchemy.orm import scoped_session
 import greenlet
-
+import schedule
+from copy import deepcopy
 
 
 app = Flask(__name__)
 app.session = scoped_session(SessionLocal, scopefunc=greenlet.getcurrent)
 with open('game_opts.pkl', 'rb') as f:
     app.game_opts = pickle.load(f)
-app.model = WinProbWrapper('classifier_v2/artifacts/xgb_classifier.json', app.session)
+app.model = WinProbWrapper(os.getenv('MODEL_PATH', '') + 'classifier_v2/artifacts/xgb_classifier.json', app.session)
+app.today = date(1970, 1, 1)
+app.curr_game_opts = {}
+app.spreads = {}
 
 HOME = "select home, away, HOME_PTS, AWAY_PTS, HOME_WIN_PROB, AWAY_WIN_PROB from SCHEDULE where GAME_DATE = :game_date"
+COVID = "select player, abs(sum(impact)) from NBA.ACTIVE_ROSTER_DUMMY where COVID = 1 and SEASON = 2023 group by PLAYER having sum(impact) < 0 order by 2 fetch next 5 rows only"
 Game = namedtuple("Game", "season game_date team")
 curr_game = None
 curr_players = {}
 
 def manage_game_opts(today):
-    bad_keys = []
+    app.curr_game_opts = deepcopy(app.game_opts)
     for k in app.game_opts['2023'].keys():
-        if int(k[:2]) > 7:
-            year = 2022
-        else:
-            year = 2023
+        year = 2022 if int(k[:2]) > 7 else 2023
         if date(year, int(k[:2]), int(k[-2:])) > today:
-            bad_keys.append(k)
-    for k in bad_keys:
-        app.game_opts['2023'].pop(k)
+            app.curr_game_opts['2023'].pop(k)
+
+def manage_today():
+    app.today = date.today()
+
+def manage_spreads():
+    pass
+
+
+manage_today()
+manage_game_opts(app.today)
+
+schedule.every().day.at("10:00").do(manage_today)
+schedule.every().day.at("10:01").do(manage_game_opts, today=app.today)
+schedule.every().day.at("10:00").do(manage_spreads)
 
 
 def search():
@@ -50,9 +65,8 @@ def index():
 
 @app.route('/home')
 def home():
-    today = date.today() if datetime.now().hour > 10 else date.today() - timedelta(days=1)
-    yday = read_table(HOME, game_date=today - timedelta(days=1), connection=app.session)
-    tday = read_table(HOME, game_date=today, connection=app.session)
+    yday = read_table(HOME, game_date=app.today - timedelta(days=1), connection=app.session)
+    tday = read_table(HOME, game_date=app.today, connection=app.session)
     yday_tables = ''
     for i, row in yday.iterrows():
         df = pd.DataFrame([[row.away, row.away_pts, f'{row.away_win_prob*100:.1f}%'],
@@ -62,8 +76,8 @@ def home():
                                                                    justify='center')
         df = df.replace('dataframe','box_score')
         yday_tables += (df + "<br>")
-    rows, cols = layouts.get(len(tday), (5, 3))
-    specs = [[{"type": "pie"} for i in range(cols)] for j in range(rows)]
+    rows, cols, h = layouts.get(len(tday), (5, 3, 650))
+    specs = [[{"type": "pie"} for _ in range(cols)] for _ in range(rows)]
     fig = make_subplots(rows=rows, cols=cols, specs=specs)
     locs = list(product(list(range(1, rows + 1)), list(range(1, cols + 1))))
     s = pd.Series(team_colors)
@@ -71,11 +85,25 @@ def home():
         row_l, col = locs.pop(0)
         fig.add_trace(go.Pie(labels=[row.home, row.away], values=[row.home_win_prob, row.away_win_prob],
                              text=[row.home, row.away],
-                             textposition='outside', marker={'colors': s[[row.home, row.away]]}),
+                             textposition='outside', marker={'colors': s[[row.home, row.away]]},
+                             hovertemplate='%{label}: %{percent}<extra></extra>'),
                       row=row_l, col=col)
-    fig.update_layout(showlegend=False, title_text='Games Today', title_x=.5, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=650)
+    title = f'Games on {app.today.strftime("%m/%d")}'
+    if len(tday) < 1:
+        title += '<br>No Games Today'
+    fig.update_layout(showlegend=False, title_text=title, title_x=.5, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=h,
+                      xaxis={'showgrid': False, 'zeroline': False, 'visible': False}, yaxis={'showgrid': False, 'zeroline': False, 'visible': False})
     graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-    return render_template("home.html", yday_games=yday_tables, graphJSON=graphJSON)
+    df = read_table(COVID, connection=app.session)
+    df.columns = ['Player', 'Losses']
+    fig = px.bar(data_frame=df, y='Player', x='Losses', orientation='h', height=300)
+    fig.update_traces(hovertemplate="%{y}: %{x:.2f}")
+    fig.update_layout(title_text="Most Impactful COVID-19 Illnesses - 2022-23",
+                      title_x=.5, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font={'color': 'black'})
+    mainGraph = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    return render_template("home.html", yday_games=yday_tables, graphJSON=graphJSON,
+                           scores_header=f"Scores - {(app.today - timedelta(days=1)).strftime('%m/%d')}",
+                           mainGraph=mainGraph)
 
 @app.route('/insights')
 def insights():
@@ -83,8 +111,6 @@ def insights():
 
 @app.route('/game_plan', methods=['GET', 'POST'])
 def game_plan():
-    today = date.today() if datetime.now().hour > 10 else date.today() - timedelta(days=1)
-    manage_game_opts(today)
     global curr_game
     global curr_players
     new_run = True
@@ -109,7 +135,7 @@ def game_plan():
     if month > 7:
         season -= 1
     game_date = date(season, month, day)
-    #with get_engine().connect() as conn:
+
     game = read_table("select home, away, home_pts, away_pts, HOME_WIN_PROB, AWAY_WIN_PROB from NBA.SCHEDULE where GAME_DATE = :game_date and (HOME = :team or AWAY = :team)",
                           game_date=game_date, team=team, connection=app.session)
     home = read_table(
@@ -128,7 +154,9 @@ def game_plan():
     fig = px.pie(names=game.loc[0, 'home':'away'],
                  values=pred,
                  color=game.loc[0, 'home':'away'],
-                 color_discrete_map=team_colors)
+                 color_discrete_map=team_colors,
+                 )
+    fig.update_traces(hovertemplate='%{label}: %{percent}<extra></extra>')
     fig.update_layout(legend={
         'orientation': 'h',
         'x': .5,
@@ -148,11 +176,11 @@ def game_plan():
         data = data.replace('&lt;', '<').replace('&gt;', '>')
         dfs[i] = data
     home, away = dfs
-    away_score = game.loc[0, 'away_pts'] if game.loc[0, 'away_pts'] > 0 else ''
-    home_score = game.loc[0, 'home_pts'] if game.loc[0, 'home_pts'] > 0 else ''
+    away_score = game.loc[0, 'away_pts'] if game.loc[0, 'away_pts'] > 0 else app.spreads.get(game.loc[0, 'away'], '')
+    home_score = game.loc[0, 'home_pts'] if game.loc[0, 'home_pts'] > 0 else app.spreads.get(game.loc[0, 'home'], '')
     return render_template('game_plan.html', away=game.loc[0,'away'], home=game.loc[0,'home'],
                            away_score=away_score, home_score=home_score,
                            graphJSON=graphJSON, away_roster=away, home_roster=home,
-                           game_opts=app.game_opts, home_logo=game.loc[0, 'home'].lower().replace(' ',"_"),
+                           game_opts=app.curr_game_opts, home_logo=game.loc[0, 'home'].lower().replace(' ',"_"),
                            away_logo=game.loc[0, 'away'].lower().replace(' ', '_'))
 
