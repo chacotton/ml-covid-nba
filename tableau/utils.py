@@ -56,6 +56,7 @@ def read_table(command: str, connection, index_col: str = None, **kwargs) -> pd.
     :return: pandas DataFrame
     """
     df = pd.DataFrame(connection.execute(command, kwargs).fetchall())
+    connection.remove()
     if index_col is not None:
         df.index = df.pop(index_col)
     return df
@@ -89,4 +90,5 @@ class WinProbWrapper:
         else:
             df = read_table('win_prob.sql', season=season, game_date=game_date,
                             team=home, **ha, **aa, connection=self.session)
+            self.session.remove()
             return self.model.predict_proba(df.iloc[:, 3:].values)[0][::-1]
