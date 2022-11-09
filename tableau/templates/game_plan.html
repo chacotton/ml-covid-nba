@@ -38,9 +38,12 @@
 </head>
 <body class="home_body">
 <div class="topnav">
+    <div>
     <a href="/home">Home</a>
     <a href="/insights">Insights</a>
     <a href="/game_plan" class="current">Game Planning</a>
+        </div>
+    <div style="padding-right: 10px"><img src="{{ url_for('static', filename= 'images/small_logo.png') }}" style="height: 100%; width: auto"></div>
 </div>
 <div class="site-content_section">
 <form name="form1" id="form1" style="padding-bottom: 10px; padding-top: 10px; padding-left: 5px" method="post" action="{{url_for('game_plan')}}">

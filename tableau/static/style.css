@@ -21,6 +21,8 @@
     width: 100%;
     grid-area: top_nav;
     line-height: 40px;
+    display: flex;
+    justify-content: space-between;
 }
 .home_body{
     margin: 0;

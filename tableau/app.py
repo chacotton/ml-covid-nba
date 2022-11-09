@@ -8,7 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import json
-from utils import read_table, WinProbWrapper, SessionLocal
+from utils import read_table, WinProbWrapper, SessionLocal, get_odds
 import pickle
 from constants import team_colors, layouts
 from collections import namedtuple
@@ -44,11 +44,12 @@ def manage_today():
     app.today = date.today()
 
 def manage_spreads():
-    pass
+    app.spreads = get_odds()
 
 
 manage_today()
 manage_game_opts(app.today)
+manage_spreads()
 
 schedule.every().day.at("10:00").do(manage_today)
 schedule.every().day.at("10:01").do(manage_game_opts, today=app.today)

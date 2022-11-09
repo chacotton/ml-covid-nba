@@ -1,6 +1,5 @@
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Connection
-from sqlalchemy.ext.declarative import declarative_base
+import requests
 from sqlalchemy.orm import sessionmaker
 import pandas as pd
 from pathlib import Path
@@ -71,6 +70,22 @@ def resolve_path(path):
     else:
         raise FileNotFoundError
 
+def get_odds():
+    API_KEY = "4c8d5187697efaecc1a8815a992519d5"
+    daily_odds = {}
+    sports_response = requests.get(
+    'https://api.the-odds-api.com/v4/sports/basketball_nba/odds/',
+        params={
+                'api_key': API_KEY,
+                'regions': "us",
+                'markets': "spreads",
+                }
+    )
+    for i in range(len(sports_response.json())):
+        base = sports_response.json()[i]['bookmakers'][0]['markets'][0]['outcomes']
+        for j in range(len(base)):
+            daily_odds[base[j]['name']] = f"{float(base[j]['point']):+g}"
+    return daily_odds
 
 class WinProbWrapper:
     def __init__(self, file, session):
