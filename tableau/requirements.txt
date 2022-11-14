@@ -6,3 +6,4 @@ xgboost
 oracledb
 scikit-learn
 schedule
+requests

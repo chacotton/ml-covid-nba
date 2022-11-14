@@ -22,6 +22,9 @@ app = Flask(__name__)
 app.session = scoped_session(SessionLocal, scopefunc=greenlet.getcurrent)
 with open('game_opts.pkl', 'rb') as f:
     app.game_opts = pickle.load(f)
+    app.game_opts['2020-21'] = app.game_opts.pop('2021')
+    app.game_opts['2021-22'] = app.game_opts.pop('2022')
+    app.game_opts['2022-23'] = app.game_opts.pop('2023')
 app.model = WinProbWrapper(os.getenv('MODEL_PATH', '') + 'classifier_v2/artifacts/xgb_classifier.json', app.session)
 app.today = date(1970, 1, 1)
 app.curr_game_opts = {}
@@ -35,10 +38,10 @@ curr_players = {}
 
 def manage_game_opts(today):
     app.curr_game_opts = deepcopy(app.game_opts)
-    for k in app.game_opts['2023'].keys():
+    for k in app.game_opts['2022-23'].keys():
         year = 2022 if int(k[:2]) > 7 else 2023
         if date(year, int(k[:2]), int(k[-2:])) > today:
-            app.curr_game_opts['2023'].pop(k)
+            app.curr_game_opts['2022-23'].pop(k)
 
 def manage_today():
     app.today = date.today()
@@ -116,7 +119,7 @@ def game_plan():
     global curr_players
     new_run = True
     if request.method == 'POST' and request.form.get('key', False) == 'select':
-        season = int(request.form.get('season'))
+        season = request.form.get('season')
         game_date = request.form.get('date')
         team = request.form.get('team')
     elif request.method == 'POST' and request.form.get('key', False) == 'calc' and curr_game is not None:
@@ -126,16 +129,18 @@ def game_plan():
         team = curr_game.team
         curr_players[0] = [x if request.form.get(x, 0) != 0 else 0 for x in curr_players[0]]
         curr_players[1] = [x if request.form.get(x, 0) != 0 else 0 for x in curr_players[1]]
-        print(curr_players)
     else:
-        season = 2023
-        game_date = '10/26'
-        team = 'Detroit Pistons'
+        season = '2022-23'
+        game_date = list(app.curr_game_opts['2022-23'].keys())[-1]
+        team = app.curr_game_opts['2022-23'][game_date][0]
     curr_game = Game(season, game_date, team)
     month, day = [int(x) for x in game_date.split('/')]
     if month > 7:
-        season -= 1
-    game_date = date(season, month, day)
+        season = f'20{season[2:4]}'
+    else:
+        season = f'20{season[-2:]}'
+
+    game_date = date(int(season), month, day)
 
     game = read_table("select home, away, home_pts, away_pts, HOME_WIN_PROB, AWAY_WIN_PROB from NBA.SCHEDULE where GAME_DATE = :game_date and (HOME = :team or AWAY = :team)",
                           game_date=game_date, team=team, connection=app.session)

@@ -1,4 +1,3 @@
-import time
 import pandas as pd
 import numpy as np
 from datetime import date
@@ -7,6 +6,8 @@ from nba_api.live.nba.endpoints import boxscore
 import requests
 from bs4 import BeautifulSoup, Comment
 import warnings
+from urllib.error import HTTPError
+import time
 warnings.filterwarnings('ignore')
 
 
@@ -28,17 +29,27 @@ stat_tables_dict = {
 }
 
 
+def read_html(link, **kwargs):
+    while True:
+        try:
+            df = pd.read_html(link, **kwargs)[0]
+            return df
+        except HTTPError:
+            time.sleep(300)
+            continue
+
+
 def get_stats(stat_table, year):
     url = f'https://www.basketball-reference.com/leagues/NBA_{year}_{stat_tables_dict[stat_table][0]}.html#{stat_tables_dict[stat_table][1]}_stats'
     try:
-        df = pd.read_html(url)[0]
+        df = read_html(url)
     except ValueError:
         df = errant_table(url)
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.droplevel()
     df = df[df.Rk != 'Rk']
     try:
-        pids = pd.read_html(url, extract_links='all')[0].iloc[:, 1]
+        pids = read_html(url, extract_links='all').iloc[:, 1]
     except ValueError:
         pids = errant_table(url, True).iloc[:, 1]
     pids = pids.apply(lambda x: x[1].rsplit('/', 1)[-1][:-5] if x[1] is not None else None)
@@ -50,13 +61,19 @@ def get_stats(stat_table, year):
 
 def errant_table(url, links=False):
     links = 'all' if links else None
-    response = requests.get(url)
+    while True:
+        try:
+            response = requests.get(url)
+            break
+        except HTTPError:
+            time.sleep(300)
+            continue
     soup = BeautifulSoup(response.text, 'html.parser')
     comments = soup.find_all(string=lambda text: isinstance(text, Comment))
     for each in comments:
         if 'table' in each:
             try:
-                table = pd.read_html(each, extract_links=links)[0]
+                table = read_html(each, extract_links=links)
                 return table[~table.iloc[:, 0].isna()]
             except:
                 continue
