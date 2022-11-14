@@ -1,5 +1,6 @@
 import datetime
 import pandas as pd
+from data_ingestion.stat_utils import read_html
 from data_ingestion.constants import TEAMS
 
 
@@ -17,8 +18,8 @@ class InjuryReport:
 
     @staticmethod
     def get_injury_report():
-        table = pd.read_html("https://www.basketball-reference.com/friv/injuries.fcgi#injuries")[0]
-        pids = pd.read_html('https://www.basketball-reference.com/friv/injuries.fcgi#injuries', extract_links='all')[0]
+        table = read_html("https://www.basketball-reference.com/friv/injuries.fcgi#injuries")
+        pids = read_html('https://www.basketball-reference.com/friv/injuries.fcgi#injuries', extract_links='all')
         table.index = pids.iloc[:, 0].apply(lambda x: x[1].split('/')[-1][:-5])
         table.index.name = "player_id"
         table[['Status', 'Injury', 'Description']] = pd.DataFrame(table.Description.apply(
@@ -39,8 +40,8 @@ class InjuryReport:
     def team_actives(self, team):
         team_abbrv = TEAMS[team]
         link = f"https://www.basketball-reference.com/teams/{team_abbrv}/2023.html#roster"
-        table = pd.read_html(link)[0]
-        pids = pd.read_html(link, extract_links='all')[0]
+        table = read_html(link)
+        pids = read_html(link, extract_links='all')
         table.index = pids.iloc[:, 1].apply(lambda x: x[1].split('/')[-1][:-5])
         table.index.name = "player_id"
         table = table[~table["No."].isna()][["Player"]]

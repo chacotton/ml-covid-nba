@@ -14,11 +14,12 @@ from sqlalchemy.exc import IntegrityError
 from data_ingestion.db_utils import read_table, write_db, get_engine, timeout
 from basketball_reference_scraper.box_scores import get_box_scores
 from basketball_reference_scraper.teams import get_team_ratings
-from basketball_reference_scraper.seasons import get_schedule
 from data_ingestion.constants import *
 from data_ingestion.injury_labeller.injuryScore import InjuryScore
 from data_ingestion.stat_utils import func_timer, join_player_stats, is_active, is_injured, pie_score, split_status, id_check
 from data_ingestion.bball_ref import InjuryReport
+import time
+from urllib.error import HTTPError
 
 base_path = pathlib.Path('/mnt/ml-nba/logs')
 logger = logging.getLogger("data_ingestion")
@@ -47,19 +48,27 @@ def update_player_stats(games: pd.DataFrame, connection: Connection) -> bool:
     pies = []
     if len(games) > 0:
         year = games.loc[0, 'game_date'].year if games.loc[0, 'game_date'].month < 7 else games.loc[0, 'game_date'].year + 1
-        for _, game in games.iterrows():
-            try:
-                dfs = timeout(10, get_box_scores, attempts=3, func_args=(game.game_date, TEAMS[game.home], TEAMS[game.away]))
-            except TimeoutError:
-                logger.warning('Basketball Reference Timed Out! Rows NOT updated')
-                return False
-            for team in [game.home, game.away]:
-                df = dfs[TEAMS[team]]
-                df.MP = df.MP.apply(lambda x: int(x.split(':')[0]) if len(x.split(':')) > 1 else 0)
-                player_ids = df[df.MP > 0].player_id.values
-                player_id_list += [player for player in player_ids]
-                pies += [np.clip(InjuryScore.pie_score(df, player),.01,1) for player in player_ids]
         all_stats = join_player_stats('', year)
+        for i, game in games.iterrows():
+            while True:
+                try:
+                    dfs = get_box_scores(game.game_date, TEAMS[game.home], TEAMS[game.away])
+                    logger.info(f'Completed {i+1}/{len(games)}')
+                    #dfs = timeout(10, get_box_scores, attempts=3, func_args=(game.game_date, TEAMS[game.home], TEAMS[game.away]))
+                    for team in [game.home, game.away]:
+                        df = dfs[TEAMS[team]]
+                        df.MP = df.MP.apply(lambda x: int(x.split(':')[0]) if len(x.split(':')) > 1 else 0)
+                        player_ids = df[df.MP > 0].player_id.values
+                        player_id_list += [player for player in player_ids]
+                        pies += [np.clip(InjuryScore.pie_score(df, player), .01, 1) for player in player_ids]
+                    break
+                except TimeoutError:
+                    logger.warning('Basketball Reference Timed Out! Rows NOT updated')
+                    return False
+                except:
+                    time.sleep(300)
+                    continue
+
         all_stats = all_stats.loc[player_id_list, :]
         for _, player in all_stats.iterrows():
             stats = {k.upper().translate(char_replace): int(v) if isinstance(v, np.int64) else v for k, v in player.items()}
@@ -134,7 +143,16 @@ def add_new_players(game_date: datetime.date, id_checker, connection: Connection
     if game_date.date() == datetime.date.today():
         games = read_table(games_today, today=game_date)
         live_injury_report = InjuryReport()
-        actives = [live_injury_report.team_actives(team) for team in games.home.to_list() + games.away.to_list()]
+        actives = []
+        for team in games.home.to_list() + games.away.to_list():
+            while True:
+                try:
+                    actives.append(live_injury_report.team_actives(team))
+                    break
+                except HTTPError:
+                    time.sleep(300)
+                    continue
+        #actives = [live_injury_report.team_actives(team) for team in games.home.to_list() + games.away.to_list()]
         actives = pd.concat(actives, ignore_index=True)
         inactives = live_injury_report.injury_mapping[live_injury_report.injury_mapping.Status == 'Out']
         inactives['mp'], inactives['health'], inactives['active'] = [0, 0, 0]
@@ -193,15 +211,23 @@ def update_roster(day: datetime.date, connection: Connection = None) -> bool:
     ids = read_table(player_to_id, index_col='name')
     id_checker = partial(id_check, ids=ids)
     update_info(day, id_checker, connection)
-    add_new_players(day + datetime.timedelta(days=1), id_checker, connection)
+    while True:
+        try:
+            add_new_players(day + datetime.timedelta(days=1), id_checker, connection)
+            break
+        except HTTPError:
+            logger.info('Rate Limiting Error')
+            time.sleep(600)
     return True
 
 
 @func_timer(logger)
 def update_schedule(day: datetime.date, connection: Connection = None) -> bool:
     season = day.year if day.month < 7 else day.year + 1
-    scores = get_schedule(season)
-    scores = scores[scores.DATE == day]
+    scores = pd.read_html(f'https://www.basketball-reference.com/leagues/NBA_{season}_games-{day.strftime("%B").lower()}.html#schedule',
+                          index_col='Date', parse_dates=True)[0]
+    scores = scores.loc[day, 'Visitor/Neutral':'PTS.1']
+    scores.columns = ['VISITOR', 'VISITOR_PTS', 'HOME', 'HOME_PTS']
     for i, row in scores.iterrows():
         out = {'home': row.HOME, 'game_date': day, 'home_pts': int(row.HOME_PTS), 'away_pts': int(row.VISITOR_PTS),
                'diff': int(abs(row.HOME_PTS - row.VISITOR_PTS)),
@@ -209,6 +235,15 @@ def update_schedule(day: datetime.date, connection: Connection = None) -> bool:
         write_db(schedule_update, **out, connection=connection)
     logger.info(f"Scores Successfully Updated: {len(scores)}")
     return True
+
+def handle_limiting_error(func, *args):
+    while True:
+        try:
+            out = func(*args)
+            return out
+        except HTTPError:
+            time.sleep(300)
+            continue
 
 
 if __name__ == '__main__':
@@ -227,15 +262,19 @@ if __name__ == '__main__':
         today = datetime.datetime.strptime(args.date, '%Y-%m-%d') - datetime.timedelta(days=1)
     logger.info(f'Executing with Date: {today.strftime("%Y-%m-%d")}')
     games = read_table(games_today, today=today)
+    wait_time = 120
     try:
         with get_engine().begin() as conn:
-            update_schedule(today)
+            handle_limiting_error(update_schedule, today)
+            time.sleep(wait_time)
             if args.player:
-                update_player_stats(games, conn)
+                handle_limiting_error(update_player_stats, games, conn)
+                time.sleep(wait_time)
             if args.team:
-                update_team_stats(games, conn)
+                handle_limiting_error(update_team_stats, games, conn)
+                time.sleep(wait_time)
             if args.roster:
-                update_roster(today, conn)
+                handle_limiting_error(update_roster, today, conn)
     except ConnectionError:
         logger.error('Database Connection Failed!')
 
