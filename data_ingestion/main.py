@@ -10,7 +10,7 @@ import sys
 import pathlib
 from functools import partial
 from sqlalchemy.engine import Connection
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, InternalError
 from data_ingestion.db_utils import read_table, write_db, get_engine, timeout
 from basketball_reference_scraper.box_scores import get_box_scores
 from basketball_reference_scraper.teams import get_team_ratings
@@ -192,7 +192,7 @@ def add_new_players(game_date: datetime.date, id_checker, connection: Connection
         try:
             write_db('roster_update.sql', connection=connection, **row)
             success += 1
-        except IntegrityError:
+        except (IntegrityError, InternalError):
             logger.warning(f'Row Already Exists in Database: PK: {row.game_date} ^ {row.player_id}')
             failed += 1
     logger.info(f'New Roster Rows\nAdded:  {success}')
@@ -226,7 +226,10 @@ def update_schedule(day: datetime.date, connection: Connection = None) -> bool:
     season = day.year if day.month < 7 else day.year + 1
     scores = pd.read_html(f'https://www.basketball-reference.com/leagues/NBA_{season}_games-{day.strftime("%B").lower()}.html#schedule',
                           index_col='Date', parse_dates=True)[0]
-    scores = scores.loc[day, 'Visitor/Neutral':'PTS.1']
+    try:
+        scores = scores.loc[day, 'Visitor/Neutral':'PTS.1']
+    except KeyError:
+        return False
     scores.columns = ['VISITOR', 'VISITOR_PTS', 'HOME', 'HOME_PTS']
     for i, row in scores.iterrows():
         out = {'home': row.HOME, 'game_date': day, 'home_pts': int(row.HOME_PTS), 'away_pts': int(row.VISITOR_PTS),

@@ -1,7 +1,7 @@
 import os
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta
 from itertools import product
-from flask import Flask, render_template, request, redirect, url_for, _app_ctx_stack
+from flask import Flask, render_template, request, redirect, url_for
 import pandas as pd
 import plotly
 import plotly.express as px
@@ -11,7 +11,6 @@ import json
 from utils import read_table, WinProbWrapper, SessionLocal, get_odds
 import pickle
 from constants import team_colors, layouts
-from collections import namedtuple
 from sqlalchemy.orm import scoped_session
 import greenlet
 import schedule
@@ -32,9 +31,6 @@ app.spreads = {}
 
 HOME = "select home, away, HOME_PTS, AWAY_PTS, HOME_WIN_PROB, AWAY_WIN_PROB from SCHEDULE where GAME_DATE = :game_date"
 COVID = "select player, abs(sum(impact)) from NBA.ACTIVE_ROSTER_DUMMY where COVID = 1 and SEASON = 2023 group by PLAYER having sum(impact) < 0 order by 2 fetch next 5 rows only"
-Game = namedtuple("Game", "season game_date team")
-curr_game = None
-curr_players = {}
 
 def manage_game_opts(today):
     app.curr_game_opts = deepcopy(app.game_opts)
@@ -114,27 +110,22 @@ def insights():
     return render_template('insights.html')
 
 @app.route('/game_plan', methods=['GET', 'POST'])
-def game_plan():
-    global curr_game
-    global curr_players
-    new_run = True
-    if request.method == 'POST' and request.form.get('key', False) == 'select':
+def game_plan_routing():
+    if request.method == 'POST':
         season = request.form.get('season')
         game_date = request.form.get('date')
         team = request.form.get('team')
-    elif request.method == 'POST' and request.form.get('key', False) == 'calc' and curr_game is not None:
-        new_run = False
-        season = curr_game.season
-        game_date = curr_game.game_date
-        team = curr_game.team
-        curr_players[0] = [x if request.form.get(x, 0) != 0 else 0 for x in curr_players[0]]
-        curr_players[1] = [x if request.form.get(x, 0) != 0 else 0 for x in curr_players[1]]
     else:
         season = '2022-23'
-        game_date = list(app.curr_game_opts['2022-23'].keys())[-1]
-        team = app.curr_game_opts['2022-23'][game_date][0]
-    curr_game = Game(season, game_date, team)
-    month, day = [int(x) for x in game_date.split('/')]
+        game_date = '11/07'
+        team = 'Los Angeles Lakers'
+    return redirect(url_for('game_plan', season=season, game_date=game_date.replace('/','-'), team=team.lower().replace(' ','-')))
+
+
+@app.route('/game_plan/<season>/<game_date>/<team>', methods=['GET', 'POST'])
+def game_plan(season, game_date, team):
+    team = team.replace('-', ' ').title()
+    month, day = [int(x) for x in game_date.split('-')]
     if month > 7:
         season = f'20{season[2:4]}'
     else:
@@ -150,12 +141,12 @@ def game_plan():
     away = read_table(
             "select player, active, PLAYER_ID from nba.ACTIVE_ROSTER_DUMMY where GAME_DATE = :game_date and TEAM = :team",
             game_date=game_date, team=game.loc[0, 'away'], connection=app.session)
-    if new_run:
+    if request.method != 'POST':
         home_actives = home[home.active == 1].player_id.tolist()
         away_actives = away[away.active == 1].player_id.tolist()
     else:
-        home_actives = [x for x in curr_players[0] if x != 0]
-        away_actives = [x for x in curr_players[1] if x != 0]
+        home_actives = [x for x in home.player_id.tolist() if request.form.get(x, 0) != 0]
+        away_actives = [x for x in away.player_id.tolist() if request.form.get(x, 0) != 0]
     pred = app.model.predict(home_actives, away_actives, season=season, game_date=game_date, home=game.loc[0, 'home'])
     fig = px.pie(names=game.loc[0, 'home':'away'],
                  values=pred,
@@ -174,9 +165,8 @@ def game_plan():
     for i, data in enumerate(dfs):
         data.columns = ['Players', 'Active', 'pid']
         data.sort_values(by='Players', inplace=True)
-        if not new_run:
-            data.Active = curr_players[i]
-        curr_players[i] = data.pid.tolist()
+        if request.method == 'POST':
+            data.Active = data.pid.apply(lambda x: x if request.form.get(x, 0) != 0 else 0)
         data.Active = data.apply(lambda r: f'<input type="checkbox" name="{r.pid}" {"checked" if r.Active else ""}>', axis=1)
         data = data.to_html(border=0, index=False, col_space=50, justify='center', columns=['Players', 'Active'])
         data = data.replace('&lt;', '<').replace('&gt;', '>')
@@ -189,4 +179,3 @@ def game_plan():
                            graphJSON=graphJSON, away_roster=away, home_roster=home,
                            game_opts=app.curr_game_opts, home_logo=game.loc[0, 'home'].lower().replace(' ',"_"),
                            away_logo=game.loc[0, 'away'].lower().replace(' ', '_'))
-
