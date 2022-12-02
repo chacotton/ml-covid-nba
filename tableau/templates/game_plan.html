@@ -46,7 +46,7 @@
     <div style="padding-right: 10px"><img src="{{ url_for('static', filename= 'images/small_logo.png') }}" style="height: 100%; width: auto"></div>
 </div>
 <div class="site-content_section">
-<form name="form1" id="form1" style="padding-bottom: 10px; padding-top: 10px; padding-left: 5px" method="post" action="{{url_for('game_plan')}}">
+<form name="form1" id="form1" style="padding-bottom: 10px; padding-top: 10px; padding-left: 5px" method="post" action="{{url_for('game_plan_routing')}}">
   <input type="hidden" name="key" value="select">
   <div class="bottomnav">
   Season: <select name="season" id="season">
@@ -72,7 +72,7 @@
   <div class="inline_topper"><img src="{{ url_for('static', filename='/images/' + home_logo + '.png') }}" class="team_logos"><br> {{ home }} <br> {{home_score }}</div>
   <p style="text-align: center">Activate or deactivate players to see the change in win probability</p>
 
-  <form name="'roster" method="post" action="{{ url_for('game_plan') }}">
+  <form name="'roster" method="post" >
     <input type="hidden" name="key" value="calc">
     <div style="text-align: center"><input type="submit" value="Calculate" class="calc"></div>
   <div class="inline_bottom">
